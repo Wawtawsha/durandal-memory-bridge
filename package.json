@@ -1,0 +1,76 @@
+{
+  "name": "durandal",
+  "version": "2.1.0",
+  "description": "Durandal - Advanced AI assistant with intelligent context management, persistent memory, and project intelligence",
+  "main": "durandal.js",
+  "scripts": {
+    "durandal": "node durandal.js",
+    "durandal-ui": "node durandal-ui.js",
+    "devassistant-ui": "node devassistant-ui-server.js",
+    "memory-api": "node memory-api-server.js",
+    "dev-durandal": "nodemon durandal.js",
+    "ai-dev": "node ai-dev-assistant.js",
+    "start-memory-api": "node memory-api-server.js",
+    "test": "node test-connection.js",
+    "test-db": "node test-database.js",
+    "test-memory": "node test-memory-chatbot.js",
+    "test-extraction": "node test-knowledge-extraction.js",
+    "test-context": "node test-context-management-advanced.js",
+    "test-phase1": "node test-phase1-integration.js",
+    "test-phase2": "node test-phase2-integration.js",
+    "test-phase3": "node test-phase3-comprehensive.js",
+    "test-phase3-integration": "node test-phase3-devassistant-integration.js",
+    "test-phase4": "node test-phase4-devassistant-integration.js",
+    "test-all": "npm run test && npm run test-db && npm run test-memory && npm run test-extraction && npm run test-context && npm run test-phase1 && npm run test-phase2 && npm run test-phase3 && npm run test-phase3-integration && npm run test-phase4",
+    "universal": "node universal-ai.js",
+    "universal-ui": "node universal-ui-server.js",
+    "test-universal": "node test-universal-ai.js",
+    "test-gateway": "node test-universal-gateway.js",
+    "start": "node durandal.js"
+  },
+  "keywords": [
+    "durandal",
+    "ai",
+    "assistant",
+    "claude",
+    "chatbot",
+    "memory",
+    "postgresql",
+    "context-management",
+    "ramr",
+    "knowledge-extraction",
+    "intelligent-caching"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "axios": "^1.10.0",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^17.1.0",
+    "express": "^4.21.2",
+    "mssql": "^11.0.1",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.16.3",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.6",
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.4",
+    "archiver": "^7.0.1",
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "local"
+  },
+  "bugs": {
+    "url": "local"
+  },
+  "homepage": "local"
+}
