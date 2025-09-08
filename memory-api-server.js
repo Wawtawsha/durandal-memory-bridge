@@ -39,7 +39,8 @@ class MemoryApiServer {
             res.json({ 
                 status: 'healthy', 
                 timestamp: new Date().toISOString(),
-                memorySystemReady: !!this.memorySystem
+                memorySystemReady: !!this.memorySystem,
+                environment: process.env.NODE_ENV || 'development'
             });
         });
 
@@ -210,21 +211,34 @@ class MemoryApiServer {
 
     async start() {
         try {
-            // Test database connection before starting server
-            this.memorySystem = new UniversalMemorySystem();
-            await this.memorySystem.initialize();
-            
+            // Start server first, initialize database lazily
             this.server = this.app.listen(this.port, () => {
                 console.log(`🚀 Memory API Server running on port ${this.port}`);
                 console.log(`📊 Health check: http://localhost:${this.port}/health`);
                 console.log(`🔑 API Key required: ${process.env.MEMORY_API_KEY || 'durandal-memory-api-key'}`);
                 console.log(`🌍 CORS enabled for Claude Code domains`);
+                
+                // Initialize database in background
+                this.initializeMemorySystem();
             });
             
             return this.server;
         } catch (error) {
             console.error('❌ Failed to start Memory API Server:', error.message);
             throw error;
+        }
+    }
+
+    async initializeMemorySystem() {
+        try {
+            console.log('🔄 Initializing memory system...');
+            this.memorySystem = new UniversalMemorySystem();
+            await this.memorySystem.initialize();
+            console.log('✅ Memory system initialized successfully');
+        } catch (error) {
+            console.warn('⚠️ Memory system initialization failed:', error.message);
+            console.log('📋 Server will run in limited mode - some endpoints may not work');
+            this.memorySystem = null;
         }
     }
 
