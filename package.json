@@ -45,10 +45,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/enterprise/durandal-memory.git"
+    "url": "https://github.com/Wawtawsha/durandal-memory-bridge.git"
   },
   "bugs": {
-    "url": "https://github.com/enterprise/durandal-memory/issues"
+    "url": "https://github.com/Wawtawsha/durandal-memory-bridge/issues"
   },
-  "homepage": "https://github.com/enterprise/durandal-memory#readme"
+  "homepage": "https://github.com/Wawtawsha/durandal-memory-bridge#readme"
 }
