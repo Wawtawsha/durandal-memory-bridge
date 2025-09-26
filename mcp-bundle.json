@@ -1,0 +1,276 @@
+{
+  "name": "durandal-memory",
+  "version": "2.1.0",
+  "description": "Durandal - Universal AI Memory System for Claude Code. Provides persistent memory, semantic search, and intelligent context management.",
+  "author": "Enterprise Data and Analytics",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "ai",
+    "claude",
+    "persistent",
+    "context",
+    "semantic-search",
+    "knowledge-management"
+  ],
+  "mcpVersion": "1.0.0",
+  "server": {
+    "command": "node",
+    "args": ["durandal-mcp-server-v2.js"],
+    "env": {}
+  },
+  "capabilities": {
+    "tools": [
+      {
+        "name": "store_memory",
+        "description": "Store information with enriched metadata for intelligent processing",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "Content to store"
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Enriched metadata from Claude Code",
+              "properties": {
+                "importance": {
+                  "type": "number",
+                  "description": "Importance score (0.0-1.0)"
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Semantic categories"
+                },
+                "keywords": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Extracted keywords"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Content type"
+                },
+                "project": {
+                  "type": "string",
+                  "description": "Project name"
+                },
+                "session": {
+                  "type": "string",
+                  "description": "Session identifier"
+                }
+              }
+            }
+          },
+          "required": ["content"]
+        }
+      },
+      {
+        "name": "search_memories",
+        "description": "Search memories using metadata and content filters",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "filters": {
+              "type": "object",
+              "properties": {
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "project": {
+                  "type": "string"
+                },
+                "session": {
+                  "type": "string"
+                },
+                "importance_min": {
+                  "type": "number"
+                },
+                "importance_max": {
+                  "type": "number"
+                },
+                "date_from": {
+                  "type": "string"
+                },
+                "date_to": {
+                  "type": "string"
+                }
+              }
+            },
+            "limit": {
+              "type": "number",
+              "default": 10,
+              "description": "Maximum results"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "get_context",
+        "description": "Get contextual information and recent memories",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "project": {
+              "type": "string"
+            },
+            "session": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "number",
+              "default": 10
+            },
+            "include_stats": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        }
+      },
+      {
+        "name": "optimize_memory",
+        "description": "Trigger automatic memory optimization (RAMR, Selective Attention, etc.)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "operations": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["cache_optimization", "retention_review", "pattern_analysis", "relationship_update"]
+              },
+              "default": ["cache_optimization"]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "requirements": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.5",
+    "pg": "^8.16.3",
+    "sqlite3": "^5.1.6",
+    "dotenv": "^17.1.0"
+  },
+  "files": [
+    "durandal-mcp-server-v2.js",
+    "db-adapter.js",
+    "mcp-db-client.js",
+    "package.json",
+    ".env.mcp-minimal"
+  ],
+  "installation": {
+    "steps": [
+      {
+        "description": "Install dependencies",
+        "command": "npm install"
+      },
+      {
+        "description": "Run MCP server (no configuration needed!)",
+        "command": "node durandal-mcp-server-v2.js"
+      }
+    ],
+    "notes": [
+      "Zero configuration required - SQLite database created automatically",
+      "Optional: Copy .env.mcp-minimal to .env for custom settings",
+      "Works immediately with Claude Code MCP integration"
+    ]
+  },
+  "configuration": {
+    "required": [],
+    "optional": [
+      {
+        "name": "DATABASE_PATH",
+        "description": "SQLite database path",
+        "default": "./durandal-mcp-memory.db"
+      },
+      {
+        "name": "LOG_LEVEL",
+        "description": "Logging level",
+        "default": "warn"
+      }
+    ],
+    "notes": [
+      "No configuration required - works out of the box!",
+      "SQLite database created automatically on first run",
+      "All settings are optional with sensible defaults"
+    ]
+  },
+  "examples": {
+    "storing_memory": {
+      "description": "Store a user preference with high importance",
+      "tool": "store_memory",
+      "input": {
+        "content": "I prefer React with TypeScript for frontend development",
+        "metadata": {
+          "importance": 0.9,
+          "categories": ["development", "preferences", "frontend"],
+          "keywords": ["React", "TypeScript", "frontend"],
+          "type": "preference",
+          "project": "web-development"
+        }
+      }
+    },
+    "searching_memories": {
+      "description": "Search for React-related memories",
+      "tool": "search_memories",
+      "input": {
+        "query": "React TypeScript",
+        "filters": {
+          "categories": ["development"],
+          "importance_min": 0.5
+        },
+        "limit": 5
+      }
+    },
+    "getting_context": {
+      "description": "Get recent context for current project",
+      "tool": "get_context",
+      "input": {
+        "project": "web-development",
+        "limit": 10,
+        "include_stats": true
+      }
+    }
+  },
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "Database connection failed",
+        "solution": "Check DATABASE_TYPE and DATABASE_PATH/DATABASE_URL in .env file"
+      },
+      {
+        "issue": "Permission denied errors",
+        "solution": "Ensure the database directory is writable and file permissions are correct"
+      },
+      {
+        "issue": "MCP server not responding",
+        "solution": "Check that Node.js version is 18.0.0 or higher and all dependencies are installed"
+      }
+    ]
+  },
+  "support": {
+    "documentation": "https://github.com/enterprise/durandal/blob/main/README.md",
+    "issues": "https://github.com/enterprise/durandal/issues",
+    "email": "support@durandal-ai.com"
+  }
+}
