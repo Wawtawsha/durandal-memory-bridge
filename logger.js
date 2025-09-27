@@ -25,7 +25,7 @@ class Logger {
                            this.levels.warn;
 
         this.verbose = process.env.VERBOSE === 'true' || options.verbose === true;
-        this.debug = process.env.DEBUG === 'true' || options.debug === true;
+        this.debugMode = process.env.DEBUG === 'true' || options.debug === true;
         this.logMCPTools = process.env.LOG_MCP_TOOLS === 'true' || options.logMCPTools === true;
 
         // File logging configuration
@@ -192,7 +192,7 @@ class Logger {
 
     // Convenience methods
     debug(message, meta = {}) {
-        if (this.debug) {
+        if (this.debugMode || this.currentLevel <= this.levels.debug) {
             this.log('debug', message, meta);
         }
     }
