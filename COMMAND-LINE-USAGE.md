@@ -11,6 +11,7 @@ This document provides correct usage examples for all Durandal MCP Server comman
 | `durandal-mcp -h` | Show help | ✅ Yes |
 | `durandal-mcp --help` | Show help | ✅ Yes |
 | `durandal-mcp --test` | Run tests | ✅ Yes |
+| `durandal-mcp --update` | Check for and install updates | ✅ Yes |
 | `durandal-mcp` | Start server | ❌ No (blocks) |
 | `durandal-mcp --debug` | Start with debug logs | ❌ No (blocks) |
 | `durandal-mcp --verbose` | Start with verbose output | ❌ No (blocks) |
@@ -152,6 +153,84 @@ npm test
 ```
 
 **Exit Code:** 0 (all tests pass) or 1 (tests failed)
+
+---
+
+### Check for and Install Updates
+
+**Correct:**
+```bash
+durandal-mcp --update
+node durandal-mcp-server-v3.js --update
+```
+
+**Output:**
+```
+🔄 Durandal MCP Update Tool
+
+🔍 Checking for updates...
+
+✅ Update available: v3.0.1 → v3.0.2
+
+📋 This will run: npm install -g durandal-memory-mcp@latest
+
+⏳ Installing update...
+
+✅ Update completed successfully!
+   Run 'durandal-mcp --version' to verify.
+```
+
+**Behavior:**
+- Checks npm registry for latest version
+- If update available, downloads and installs it automatically
+- Requires npm to be installed and accessible
+- May require elevated permissions (sudo on macOS/Linux)
+
+**Exit Code:** 0 (update successful) or 1 (update failed)
+
+**Update Notifications:**
+
+When you start the server normally, it will check for updates once per day and show a notification if one is available:
+
+```bash
+$ durandal-mcp
+📊 Database: Using SQLite at ./durandal-mcp-memory.db
+✅ SQLite schema initialized
+
+╭──────────────────────────────────────────────────────────╮
+│                                                          │
+│  Update available: 3.0.1 → 3.0.2                        │
+│                                                          │
+│  Run: durandal-mcp --update                             │
+│                                                          │
+│  Release: https://github.com/.../releases/v3.0.2        │
+│                                                          │
+╰──────────────────────────────────────────────────────────╯
+
+[Server continues running normally...]
+```
+
+**Disable Update Checks:**
+
+To disable automatic update notifications, set an environment variable:
+
+```bash
+# Disable update checks completely
+export NO_UPDATE_CHECK=1
+durandal-mcp
+
+# Or use the config file
+UPDATE_CHECK_ENABLED=false durandal-mcp
+```
+
+**Configuration Options:**
+
+See `.env.mcp-minimal` for all update configuration options:
+- `UPDATE_CHECK_ENABLED` - Enable/disable update checks (default: true)
+- `UPDATE_CHECK_INTERVAL` - Check interval in ms (default: 24 hours)
+- `UPDATE_NOTIFICATION` - Show notifications (default: true)
+- `AUTO_UPDATE` - Auto-update without prompting (NOT RECOMMENDED)
+- `SHOW_PRERELEASE` - Show pre-release versions (default: false)
 
 ---
 

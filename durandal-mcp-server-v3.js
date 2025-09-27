@@ -24,6 +24,7 @@ const {
     ErrorHandler
 } = require('./errors');
 const TestRunner = require('./test-runner');
+const UpdateChecker = require('./update-checker');
 
 class DurandalMCPServer extends EventEmitter {
     constructor(options = {}) {
@@ -752,6 +753,23 @@ class DurandalMCPServer extends EventEmitter {
 
         // Log system info
         this.logger.logSystemInfo();
+
+        // Check for updates (async, non-blocking)
+        this.checkForUpdates();
+    }
+
+    async checkForUpdates() {
+        try {
+            const updateChecker = new UpdateChecker(this.packageInfo, this.logger);
+            const updateInfo = await updateChecker.checkForUpdates();
+
+            if (updateInfo && updateInfo.updateAvailable) {
+                updateChecker.showUpdateNotification(updateInfo);
+            }
+        } catch (error) {
+            // Silently fail - update check shouldn't break server
+            this.logger.debug('Update check error', { error: error.message });
+        }
     }
 
     async shutdown() {
@@ -782,6 +800,7 @@ Options:
   --help, -h        Show this help message
   --version, -v     Show version information
   --test            Run built-in test suite
+  --update          Check for and install updates
   --debug           Enable debug logging
   --verbose         Enable verbose output
   --log-file FILE   Write logs to file
@@ -825,6 +844,23 @@ SQLite3: ${pkg.dependencies.sqlite3}
             const runner = new TestRunner(logger);
             const success = await runner.runAllTests();
             process.exit(success ? 0 : 1);
+        }
+
+        if (args.includes('--update')) {
+            console.log('🔄 Durandal MCP Update Tool\n');
+            const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+            const logger = new Logger({ level: 'info' });
+            const updateChecker = new UpdateChecker(pkg, logger);
+
+            try {
+                const success = await updateChecker.performUpdate({ confirm: false });
+                process.exit(success ? 0 : 1);
+            } catch (error) {
+                console.error('\n❌ Update failed:', error.message);
+                console.log('\nYou can update manually with:');
+                console.log('  npm install -g durandal-memory-mcp@latest\n');
+                process.exit(1);
+            }
         }
 
         // Parse command line options
