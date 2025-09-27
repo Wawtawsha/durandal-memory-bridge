@@ -16,7 +16,8 @@ class Logger {
             debug: 0,
             info: 1,
             warn: 2,
-            error: 3
+            error: 3,
+            fatal: 4
         };
 
         // Configuration from environment or options
@@ -37,10 +38,13 @@ class Logger {
 
         // Color codes for different log levels
         this.colors = {
-            debug: '\x1b[36m', // Cyan
-            info: '\x1b[32m',  // Green
-            warn: '\x1b[33m',  // Yellow
-            error: '\x1b[31m', // Red
+            debug: '\x1b[36m',         // Cyan
+            info: '\x1b[32m',          // Green
+            warn: '\x1b[33m',          // Yellow
+            error: '\x1b[31m',         // Red
+            fatal: '\x1b[1m\x1b[31m', // Bright Red
+            bright: '\x1b[1m',         // Bright/Bold
+            dim: '\x1b[2m',            // Dim
             reset: '\x1b[0m'
         };
 
@@ -111,7 +115,7 @@ class Logger {
         });
     }
 
-    formatMessage(level, message, meta = {}) {
+    formatMessage(level, message, meta = {}, emoji = '') {
         const timestamp = new Date().toISOString();
 
         // Structured log object
@@ -127,44 +131,59 @@ class Logger {
             return JSON.stringify(logObject) + '\n';
         }
 
-        // For console output, format nicely
+        // For console output, format nicely with sparse colors
         if (this.useColors) {
             const color = this.colors[level] || '';
             const reset = this.colors.reset;
             const levelStr = level.toUpperCase().padEnd(5);
 
-            let output = `${color}[${timestamp}] ${levelStr}${reset} ${message}`;
+            let output;
+            if (level === 'fatal') {
+                output = `${this.colors.fatal}${emoji} ${message}${reset}`;
+            } else if (level === 'error') {
+                output = `${this.colors.bright}${color}${emoji} ${message}${reset}`;
+            } else if (level === 'warn') {
+                output = `${color}${emoji} ${message}${reset}`;
+            } else if (level === 'info') {
+                output = `${this.colors.bright}${color}${emoji} ${message}${reset}`;
+            } else if (level === 'debug') {
+                output = `${color}${emoji} ${message}${reset}`;
+            } else {
+                output = `${color}[${timestamp}] ${levelStr}${reset} ${message}`;
+            }
 
             if (Object.keys(meta).length > 0) {
                 if (this.verbose) {
                     output += '\n' + util.inspect(meta, { colors: true, depth: null });
-                } else {
-                    // Compact meta display for non-verbose mode
+                } else if (this.currentLevel <= this.levels.debug) {
                     const metaStr = Object.entries(meta)
                         .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
                         .join(' ');
-                    output += ` ${metaStr}`;
+                    if (metaStr) {
+                        output += ` ${this.colors.dim}${metaStr}${reset}`;
+                    }
                 }
             }
 
             return output;
         } else {
-            // Plain text output without colors
-            return `[${timestamp}] ${level.toUpperCase().padEnd(5)} ${message} ${JSON.stringify(meta)}`;
+            return `[${timestamp}] ${level.toUpperCase().padEnd(5)} ${emoji} ${message} ${JSON.stringify(meta)}`;
         }
     }
 
-    log(level, message, meta = {}) {
-        // Check if we should log this level
-        const levelValue = this.levels[level];
-        if (levelValue === undefined || levelValue < this.currentLevel) {
-            return;
+    log(level, message, meta = {}, emoji = '') {
+        // Fatal errors are ALWAYS displayed
+        if (level !== 'fatal') {
+            const levelValue = this.levels[level];
+            if (levelValue === undefined || levelValue < this.currentLevel) {
+                return;
+            }
         }
 
-        const formattedMessage = this.formatMessage(level, message, meta);
+        const formattedMessage = this.formatMessage(level, message, meta, emoji);
 
         // Console output
-        if (level === 'error') {
+        if (level === 'error' || level === 'fatal') {
             console.error(formattedMessage);
         } else {
             console.log(formattedMessage);
@@ -180,7 +199,7 @@ class Logger {
             }) + '\n');
         }
 
-        if (this.errorStream && level === 'error') {
+        if (this.errorStream && (level === 'error' || level === 'fatal')) {
             this.errorStream.write(JSON.stringify({
                 timestamp: new Date().toISOString(),
                 level,
@@ -198,15 +217,37 @@ class Logger {
     }
 
     info(message, meta = {}) {
-        this.log('info', message, meta);
+        this.log('info', message, meta, 'ℹ️ ');
     }
 
     warn(message, meta = {}) {
-        this.log('warn', message, meta);
+        this.log('warn', message, meta, '⚠️ ');
     }
 
     error(message, meta = {}) {
-        this.log('error', message, meta);
+        this.log('error', message, meta, '❌');
+    }
+
+    fatal(message, meta = {}) {
+        this.log('fatal', message, meta, '🛑');
+    }
+
+    processing(message, meta = {}) {
+        if (this.currentLevel <= this.levels.info) {
+            console.log(`${this.colors.debug}🔄 ${message}${this.colors.reset}`);
+        }
+    }
+
+    success(message, meta = {}) {
+        if (this.currentLevel <= this.levels.info) {
+            this.log('info', message, meta, '✅');
+        }
+    }
+
+    substep(message, meta = {}) {
+        if (this.debugMode || this.currentLevel <= this.levels.debug) {
+            console.log(`${this.colors.dim}  └─ ${message}${this.colors.reset}`);
+        }
     }
 
     // MCP Tool logging helpers

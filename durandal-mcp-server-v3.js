@@ -248,6 +248,8 @@ class DurandalMCPServer extends EventEmitter {
     }
 
     async handleStoreMemory(args, requestId) {
+        this.logger.processing('Processing store_memory request from Claude');
+
         // Validate input
         if (!args.content || typeof args.content !== 'string') {
             throw new ValidationError('Content must be a non-empty string', 'content', args.content);
@@ -269,11 +271,17 @@ class DurandalMCPServer extends EventEmitter {
         // Generate memory ID
         const memoryId = this.generateMemoryId();
 
+        this.logger.substep('Analyzing content');
+
         // Enrich metadata
         const enrichedMetadata = this.enrichMetadata(metadata);
 
+        this.logger.substep('Storing to cache');
+
         // Store in cache first
         this.storeInCache(memoryId, args.content, enrichedMetadata);
+
+        this.logger.substep('Storing to database');
 
         // Store in database (async, don't wait)
         this.storeInDatabase(memoryId, args.content, enrichedMetadata).catch(error => {
@@ -287,7 +295,7 @@ class DurandalMCPServer extends EventEmitter {
         // Update access patterns for RAMR
         this.updateAccessPatterns(memoryId, 'store');
 
-        this.logger.info('Memory stored successfully', {
+        this.logger.success(`Memory stored (id: ${memoryId})`, {
             requestId,
             memoryId,
             contentLength: args.content.length,
@@ -307,6 +315,8 @@ class DurandalMCPServer extends EventEmitter {
     }
 
     async handleSearchMemories(args, requestId) {
+        this.logger.processing('Processing search_memories request from Claude');
+
         if (!args.query || typeof args.query !== 'string') {
             throw new ValidationError('Query must be a non-empty string', 'query', args.query);
         }
@@ -314,15 +324,12 @@ class DurandalMCPServer extends EventEmitter {
         const filters = args.filters || {};
         const limit = Math.min(args.limit || 10, 100); // Cap at 100
 
-        this.logger.debug('Searching memories', {
-            requestId,
-            query: args.query,
-            filters,
-            limit
-        });
+        this.logger.substep('Checking cache');
 
         // Search in cache first
         const cacheResults = this.searchCache(args.query, filters);
+
+        this.logger.substep('Querying database');
 
         // Search in database
         const dbResults = await this.searchDatabase(args.query, filters, limit).catch(error => {
@@ -341,7 +348,7 @@ class DurandalMCPServer extends EventEmitter {
             this.updateAccessPatterns(result.id, 'search');
         });
 
-        this.logger.info('Search completed', {
+        this.logger.success(`Search completed (${allResults.length} results)`, {
             requestId,
             query: args.query,
             resultsCount: allResults.length
@@ -374,18 +381,14 @@ class DurandalMCPServer extends EventEmitter {
     }
 
     async handleGetContext(args, requestId) {
+        this.logger.processing('Processing get_context request from Claude');
+
         const project = args.project || 'default';
         const session = args.session || 'default';
         const limit = Math.min(args.limit || 10, 50);
         const includeStats = args.include_stats !== false;
 
-        this.logger.debug('Getting context', {
-            requestId,
-            project,
-            session,
-            limit,
-            includeStats
-        });
+        this.logger.substep('Retrieving recent memories');
 
         // Get recent memories from database
         const recentMemories = await this.db.getRecentMessages(project, session, limit).catch(error => {
@@ -411,7 +414,7 @@ class DurandalMCPServer extends EventEmitter {
             };
         }
 
-        this.logger.info('Context retrieved', {
+        this.logger.success(`Context retrieved (${recentMemories.length} memories)`, {
             requestId,
             memoriesCount: recentMemories.length,
             cachedCount: cachedMemories.length
@@ -447,12 +450,11 @@ class DurandalMCPServer extends EventEmitter {
     }
 
     async handleOptimizeMemory(args, requestId) {
+        this.logger.processing('Processing optimize_memory request from Claude');
+
         const operations = args.operations || ['cache_optimization'];
 
-        this.logger.info('Running memory optimization', {
-            requestId,
-            operations
-        });
+        this.logger.substep(`Running ${operations.length} optimization operation(s)`);
 
         const results = [];
 
@@ -489,6 +491,12 @@ class DurandalMCPServer extends EventEmitter {
                 results.push(`❌ ${operation} failed: ${error.message}`);
             }
         }
+
+        this.logger.success('Optimization complete', {
+            requestId,
+            operationsCount: operations.length,
+            successCount: results.length
+        });
 
         return {
             content: [{
@@ -800,6 +808,8 @@ Options:
   --help, -h        Show this help message
   --version, -v     Show version information
   --test            Run built-in test suite
+  --status          Show system status and statistics
+  --configure       Interactive log level configuration
   --update          Check for and install updates
   --debug           Enable debug logging
   --verbose         Enable verbose output
@@ -844,6 +854,38 @@ SQLite3: ${pkg.dependencies.sqlite3}
             const runner = new TestRunner(logger);
             const success = await runner.runAllTests();
             process.exit(success ? 0 : 1);
+        }
+
+        if (args.includes('--status')) {
+            const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+            const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'durandal-mcp-memory.db');
+
+            const statusData = {
+                version: pkg.version,
+                status: 'running',
+                uptime: formatUptime(process.uptime()),
+                memory: {
+                    rss: (process.memoryUsage().rss / 1024 / 1024).toFixed(2),
+                    heapUsed: (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2),
+                    heapTotal: (process.memoryUsage().heapTotal / 1024 / 1024).toFixed(2)
+                },
+                database: {
+                    path: dbPath,
+                    exists: fs.existsSync(dbPath),
+                    size: fs.existsSync(dbPath) ? (fs.statSync(dbPath).size / 1024 / 1024).toFixed(2) : '0.00'
+                },
+                node: process.version,
+                platform: process.platform,
+                pid: process.pid
+            };
+
+            displayStatusSummary(statusData);
+            process.exit(0);
+        }
+
+        if (args.includes('--configure')) {
+            await configureLogLevel();
+            process.exit(0);
         }
 
         if (args.includes('--update')) {
@@ -908,6 +950,134 @@ SQLite3: ${pkg.dependencies.sqlite3}
 
         await server.start();
     }
+}
+
+function formatUptime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m ${secs}s`;
+    } else if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+    } else {
+        return `${secs}s`;
+    }
+}
+
+function displayStatusSummary(data) {
+    const statusEmoji = data.status === 'running' ? '✅' : '🛑';
+
+    console.log('\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓');
+    console.log(`┃  🎯 Durandal MCP Server v${data.version}                         ┃`);
+    console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
+    console.log(`┃  Status:          ${statusEmoji} ${data.status.charAt(0).toUpperCase() + data.status.slice(1).padEnd(32)}┃`);
+    console.log(`┃  Uptime:          ${data.uptime.padEnd(35)}┃`);
+    console.log(`┃  Memory (RSS):    ${(data.memory.rss + ' MB').padEnd(35)}┃`);
+    console.log(`┃  Memory (Heap):   ${(data.memory.heapUsed + ' / ' + data.memory.heapTotal + ' MB').padEnd(35)}┃`);
+    console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
+    console.log(`┃  Database:        ${(data.database.exists ? '✅ Connected' : '❌ Not Found').padEnd(35)}┃`);
+    console.log(`┃  Database Size:   ${(data.database.size + ' MB').padEnd(35)}┃`);
+    console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
+    console.log(`┃  Node Version:    ${data.node.padEnd(35)}┃`);
+    console.log(`┃  Platform:        ${data.platform.padEnd(35)}┃`);
+    console.log(`┃  Process ID:      ${data.pid.toString().padEnd(35)}┃`);
+    console.log('┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n');
+}
+
+async function configureLogLevel() {
+    const readline = require('readline');
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    const question = (query) => new Promise((resolve) => rl.question(query, resolve));
+
+    console.clear();
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║                                                           ║');
+    console.log('║           🔧 DURANDAL LOG LEVEL CONFIGURATION             ║');
+    console.log('║                                                           ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    console.log('Select your preferred logging level:\n');
+
+    console.log('┌───────────────────────────────────────────────────────────┐');
+    console.log('│  [1] 🔇 ERROR - Only critical errors                      │');
+    console.log('│      └─ Shows: Fatal errors, critical issues             │');
+    console.log('│      └─ Best for: Production, minimal output             │');
+    console.log('├───────────────────────────────────────────────────────────┤');
+    console.log('│  [2] ⚠️  WARN - Warnings and errors (DEFAULT)             │');
+    console.log('│      └─ Shows: Warnings, errors                           │');
+    console.log('│      └─ Best for: Normal operation, catch issues early   │');
+    console.log('├───────────────────────────────────────────────────────────┤');
+    console.log('│  [3] ℹ️  INFO - Informational messages                    │');
+    console.log('│      └─ Shows: Info, warnings, errors                     │');
+    console.log('│      └─ Best for: Monitoring activity, development       │');
+    console.log('├───────────────────────────────────────────────────────────┤');
+    console.log('│  [4] 🔍 DEBUG - Detailed debugging information            │');
+    console.log('│      └─ Shows: Everything (debug, info, warn, error)     │');
+    console.log('│      └─ Best for: Troubleshooting, deep analysis         │');
+    console.log('├───────────────────────────────────────────────────────────┤');
+    console.log('│  [5] 📊 VERBOSE - Maximum detail with MCP tool logging   │');
+    console.log('│      └─ Shows: All logs + MCP tool calls + metadata      │');
+    console.log('│      └─ Best for: Development, performance analysis      │');
+    console.log('└───────────────────────────────────────────────────────────┘\n');
+
+    console.log('┌───────────────────────────────────────────────────────────┐');
+    console.log('│  [0] ← Cancel                                             │');
+    console.log('└───────────────────────────────────────────────────────────┘\n');
+
+    const choice = await question('Enter your choice [1-5, 0 to cancel]: ');
+
+    const levels = {
+        '1': 'error',
+        '2': 'warn',
+        '3': 'info',
+        '4': 'debug',
+        '5': 'verbose'
+    };
+
+    if (choice === '0') {
+        console.log('\n❌ Configuration cancelled\n');
+        rl.close();
+        return;
+    }
+
+    if (levels[choice]) {
+        const selectedLevel = levels[choice];
+
+        const envPath = path.join(__dirname, '.env');
+        let envContent = '';
+
+        if (fs.existsSync(envPath)) {
+            envContent = fs.readFileSync(envPath, 'utf8');
+        }
+
+        if (envContent.includes('LOG_LEVEL=')) {
+            envContent = envContent.replace(/LOG_LEVEL=.*/g, `LOG_LEVEL=${selectedLevel}`);
+        } else {
+            envContent += `\nLOG_LEVEL=${selectedLevel}\n`;
+        }
+
+        fs.writeFileSync(envPath, envContent, 'utf8');
+
+        console.log('\n╔═══════════════════════════════════════════════════════════╗');
+        console.log('║                    CONFIGURATION SAVED                    ║');
+        console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+        console.log(`✅ Log level set to: ${selectedLevel.toUpperCase()}\n`);
+        console.log('To change this later, you can:\n');
+        console.log('  1. Run: durandal-mcp --configure');
+        console.log('  2. Set environment variable: LOG_LEVEL=' + selectedLevel);
+        console.log('  3. Edit your .env file\n');
+    } else {
+        console.log('\n❌ Invalid choice\n');
+    }
+
+    rl.close();
 }
 
 // Run CLI if executed directly
