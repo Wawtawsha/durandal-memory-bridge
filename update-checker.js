@@ -214,17 +214,34 @@ class UpdateChecker {
     formatUpdateNotification(updateInfo) {
         if (!updateInfo || !updateInfo.updateAvailable) return null;
 
-        const boxWidth = 60;
+        const boxWidth = 62;
         const line = '─'.repeat(boxWidth - 2);
+
+        // Truncate URL if too long
+        const maxUrlLength = boxWidth - 15; // Leave room for "  Release: " prefix
+        let url = updateInfo.homepage || 'https://npmjs.com/package/durandal-memory-mcp';
+        if (url.length > maxUrlLength) {
+            url = url.substring(0, maxUrlLength - 3) + '...';
+        }
+
+        // Calculate padding for each line
+        const updateLine = `  Update available: ${updateInfo.current} → ${updateInfo.latest}`;
+        const updatePadding = Math.max(0, boxWidth - 2 - updateLine.length);
+
+        const runLine = '  Run: durandal-mcp --update';
+        const runPadding = Math.max(0, boxWidth - 2 - runLine.length);
+
+        const releaseLine = `  Release: ${url}`;
+        const releasePadding = Math.max(0, boxWidth - 2 - releaseLine.length);
 
         return `
 ╭${line}╮
 │${' '.repeat(boxWidth - 2)}│
-│  Update available: ${updateInfo.current} → ${updateInfo.latest}${' '.repeat(boxWidth - 30 - updateInfo.current.length - updateInfo.latest.length)}│
+│${updateLine}${' '.repeat(updatePadding)}│
 │${' '.repeat(boxWidth - 2)}│
-│  Run: durandal-mcp --update${' '.repeat(boxWidth - 32)}│
+│${runLine}${' '.repeat(runPadding)}│
 │${' '.repeat(boxWidth - 2)}│
-│  Release: ${updateInfo.homepage || 'https://npmjs.com/package/durandal-memory-mcp'}${' '.repeat(boxWidth - 13 - (updateInfo.homepage || 'https://npmjs.com/package/durandal-memory-mcp').length)}│
+│${releaseLine}${' '.repeat(releasePadding)}│
 │${' '.repeat(boxWidth - 2)}│
 ╰${line}╯
 `;
