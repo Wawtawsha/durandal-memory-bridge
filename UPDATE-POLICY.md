@@ -25,10 +25,10 @@ When you start the Durandal MCP Server normally (without flags), it will:
 5. Continue starting the server normally
 
 **This check is:**
-- ✅ Asynchronous (doesn't block server startup)
-- ✅ Cached (minimal performance impact)
-- ✅ Optional (easy to disable)
-- ✅ Respectful (once per day maximum)
+- [YES] Asynchronous (doesn't block server startup)
+- [YES] Cached (minimal performance impact)
+- [YES] Optional (easy to disable)
+- [YES] Respectful (once per day maximum)
 
 ### Manual Updates
 
@@ -59,11 +59,11 @@ The update checker is implemented using only Node.js built-in modules:
 
 ### 2. Safe Command Execution
 
-- ✅ Uses `child_process.spawn` with array arguments (not string interpolation)
-- ✅ Never uses shell mode (prevents command injection)
-- ✅ Validates all inputs before execution
-- ✅ Timeout protection (30 second maximum)
-- ✅ No user input directly passed to spawn
+- [YES] Uses `child_process.spawn` with array arguments (not string interpolation)
+- [YES] Never uses shell mode (prevents command injection)
+- [YES] Validates all inputs before execution
+- [YES] Timeout protection (30 second maximum)
+- [YES] No user input directly passed to spawn
 
 **Example of safe execution:**
 ```javascript
@@ -182,10 +182,10 @@ export UPDATE_CHECK_INTERVAL=604800000
 5. User sees real-time progress
 
 **Pros:**
-- ✅ User is in control
-- ✅ Can review release notes first
-- ✅ Can choose when to update
-- ✅ Sees any errors immediately
+- [YES] User is in control
+- [YES] Can review release notes first
+- [YES] Can choose when to update
+- [YES] Sees any errors immediately
 
 ### Auto-Update (NOT Recommended)
 
@@ -200,10 +200,10 @@ export AUTO_UPDATE=true
 - No user confirmation required
 
 **Cons:**
-- ❌ Breaking changes might break workflows
-- ❌ No chance to review changes
-- ❌ Could update during critical work
-- ❌ Errors might go unnoticed
+- [NO] Breaking changes might break workflows
+- [NO] No chance to review changes
+- [NO] Could update during critical work
+- [NO] Errors might go unnoticed
 
 **We strongly recommend keeping AUTO_UPDATE=false (default)**
 
@@ -317,10 +317,10 @@ export NO_UPDATE_CHECK=1
 - Log to local files only (if logging enabled)
 
 **We do NOT:**
-- ❌ Phone home to our servers
-- ❌ Track update installations
-- ❌ Collect analytics
-- ❌ Send user information anywhere
+- [NO] Phone home to our servers
+- [NO] Track update installations
+- [NO] Collect analytics
+- [NO] Send user information anywhere
 
 ### What npm Sees
 
@@ -333,26 +333,26 @@ When you check for updates or install:
 
 ### For Individual Users
 
-1. ✅ Keep update checks enabled (default)
-2. ✅ Review release notes before updating
-3. ✅ Test in non-production first
-4. ✅ Keep a rollback plan
+1. [YES] Keep update checks enabled (default)
+2. [YES] Review release notes before updating
+3. [YES] Test in non-production first
+4. [YES] Keep a rollback plan
 
 ### For Production/Enterprise
 
-1. ✅ Disable automatic update checks:
+1. [YES] Disable automatic update checks:
    ```bash
    export NO_UPDATE_CHECK=1
    ```
 
-2. ✅ Use specific version in production:
+2. [YES] Use specific version in production:
    ```bash
    npm install -g durandal-memory-mcp@3.0.1
    ```
 
-3. ✅ Test updates in staging first
+3. [YES] Test updates in staging first
 
-4. ✅ Use npm lock files or docker containers
+4. [YES] Use npm lock files or docker containers
 
 ### For CI/CD
 

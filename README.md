@@ -8,7 +8,7 @@
 
 Give Claude Code persistent memory that remembers across sessions. Store information, search memories, and maintain context automatically.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install
 ```bash
@@ -27,12 +27,12 @@ claude mcp add durandal-memory -- durandal-mcp
 ### 3. Verify Setup
 ```bash
 claude mcp list
-# Should show: durandal-memory: ... - ✓ Connected
+# Should show: durandal-memory: ... - Connected
 ```
 
-**That's it!** 🎉 No configuration files, no API keys, no database setup required.
+**That's it!** No configuration files, no API keys, no database setup required.
 
-## 💬 How to Use
+## How to Use
 
 Just talk naturally to Claude Code. The memory system activates automatically:
 
@@ -55,16 +55,16 @@ Just talk naturally to Claude Code. The memory system activates automatically:
 - *"Optimize my memories"*
 - *"Clean up memory storage"*
 
-## ✨ Features
+## Features
 
-- **🧠 Persistent Memory**: Remembers across Claude Code sessions
-- **🔍 Smart Search**: Find information using natural language
-- **📊 Auto-Categorization**: Organizes memories by type and importance
-- **⚡ Zero Configuration**: Works immediately after installation
-- **💾 SQLite Database**: Automatically created on first use
-- **🔒 Local Storage**: All data stays on your machine
+- **Persistent Memory**: Remembers across Claude Code sessions
+- **Smart Search**: Find information using natural language
+- **Auto-Categorization**: Organizes memories by type and importance
+- **Zero Configuration**: Works immediately after installation
+- **SQLite Database**: Automatically created on first use
+- **Local Storage**: All data stays on your machine
 
-## 🛠️ MCP Tools Available
+## MCP Tools Available
 
 The server exposes these tools to Claude Code:
 
@@ -72,18 +72,22 @@ The server exposes these tools to Claude Code:
 - `search_memories` - Search with filters and queries
 - `get_context` - Retrieve recent memories and statistics
 - `optimize_memory` - Run memory system optimization
+- `get_status` - Display system status dashboard
+- `configure_logging` - Change log levels at runtime
+- `get_logs` - Retrieve session history for debugging
 
-## 📁 File Structure
+## File Structure
 
 After installation, the server creates:
 - `durandal-mcp-memory.db` - SQLite database (auto-created)
+- `~/.durandal-mcp/logs/` - Session history logs (auto-created)
 - Memory data organized by:
   - Content and metadata
   - Categories and keywords
   - Importance scores
   - Timestamps
 
-## ⚙️ Configuration (Optional)
+## Configuration (Optional)
 
 The system works with zero configuration, but you can customize:
 
@@ -91,12 +95,13 @@ The system works with zero configuration, but you can customize:
 # Copy the minimal config template
 cp node_modules/durandal-memory-mcp/.env.mcp-minimal .env
 
-# Edit if needed (both settings are optional):
+# Edit if needed (all settings are optional):
 DATABASE_PATH=./my-custom-memory.db
-LOG_LEVEL=info
+CONSOLE_LOG_LEVEL=warn  # Terminal output: error, warn, info, debug
+FILE_LOG_LEVEL=info     # Log file detail: error, warn, info, debug
 ```
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
 ### Check Server Status
 ```bash
@@ -108,10 +113,15 @@ durandal-mcp --help
 durandal-mcp --test
 ```
 
+### Configure Logging Levels
+```bash
+durandal-mcp --configure
+```
+
 ### Different Working Directory
 The MCP server creates its database in the current working directory where Claude Code is running.
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### MCP Server Not Connecting
 ```bash
@@ -135,20 +145,26 @@ claude mcp add durandal-memory -- cmd /c durandal-mcp
 - Try: *"Remember this:"* followed by your content
 - Check that Claude Code shows the MCP server as connected
 
-## 📋 Requirements
+### Debugging Issues
+- Session logs are stored at: `~/.durandal-mcp/logs/durandal-YYYY-MM-DD.log`
+- Send log files to support for assistance
+- Use `get_logs` MCP tool to retrieve recent entries
+- Configure log levels with `configure_logging` MCP tool
+
+## Requirements
 
 - **Node.js**: 18.0.0 or higher
 - **Claude Code**: Latest version
 - **Operating System**: Windows, macOS, or Linux
 
-## 🤝 Support
+## Support
 
 - **Issues/Feedback**: stephen.leonard@entdna.com
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Zero-config persistent memory for Claude Code** 🧠✨
+**Zero-config persistent memory for Claude Code**
