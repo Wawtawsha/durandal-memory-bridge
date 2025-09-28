@@ -5,6 +5,22 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2025-09-28
+
+### Core Change: Documentation Polish
+Removed all emojis from published documentation for professional appearance on NPM registry and GitHub.
+
+### What This Means for Users
+- Cleaner, more professional documentation
+- Better readability on terminals that don't support emojis
+- No functional changes - purely documentation polish
+
+### Files Changed
+- `README.md` - Removed emojis from headings and bullet points
+- `UPDATE-POLICY.md` - Replaced checkmark/cross emojis with [YES]/[NO] text
+
+---
+
 ## [3.1.0] - 2025-09-27
 
 ### Core Change: Dual Log Levels
