@@ -27,7 +27,9 @@ claude mcp list  # Verify connection
 ```
 
 ### MCP Server Environment Variables
-- `LOG_LEVEL` - Logging level (debug/info/warn/error) - default: 'warn'
+- `CONSOLE_LOG_LEVEL` - Terminal output level (error/warn/info/debug) - default: 'warn'
+- `FILE_LOG_LEVEL` - File output level (error/warn/info/debug) - default: 'info'
+- `LOG_LEVEL` - Legacy: sets both console and file levels - default: 'warn'
 - `DATABASE_PATH` - SQLite database path - default: './durandal-mcp-memory.db'
 - `VERBOSE` - Enable verbose logging - default: false
 - `DEBUG` - Enable debug mode - default: false
@@ -45,7 +47,7 @@ claude mcp list  # Verify connection
 
 **DurandalMCPServer (`durandal-mcp-server-v3.js`)** - Main MCP server implementing Model Context Protocol
 - Handles stdio transport communication with Claude Code
-- Exposes 4 MCP tools: `store_memory`, `search_memories`, `get_context`, `optimize_memory`
+- Exposes 7 MCP tools: `store_memory`, `search_memories`, `get_context`, `optimize_memory`, `get_status`, `configure_logging`, `get_logs`
 - Integrates DatabaseAdapter, Logger, ErrorHandler, and TestRunner
 - Implements RAMR caching and selective attention mechanisms
 
@@ -103,6 +105,9 @@ CREATE TABLE memories (
 2. **search_memories** - Search with keyword filtering, categories, importance threshold
 3. **get_context** - Retrieve recent memories and statistics
 4. **optimize_memory** - Run maintenance, cleanup, and optimization
+5. **get_status** - Display formatted system status dashboard
+6. **configure_logging** - Change console and file log levels at runtime
+7. **get_logs** - Retrieve and filter session history logs
 
 ## Environment Setup
 
@@ -165,6 +170,25 @@ claude mcp add durandal-memory -- cmd /c durandal-mcp
 - Push all MCP server changes to Git immediately after finalizing
 - Test before committing (`npm test`)
 - Keep commits focused on MCP server changes
+
+## Changelog Format
+When creating update notes, use this simple, clear template (see CHANGELOG.md for examples):
+
+### [Version] - Date
+
+**Core Change:** One-line summary of the main change
+
+**What This Means for Users:** Plain-language explanation of user impact
+
+**New Features/Tools:** Bulleted list of additions
+
+**Configuration:** New environment variables or config options
+
+**CLI Updates:** Changes to command-line interface
+
+**Testing:** Bug fixes and test coverage
+
+**Files Changed:** List of modified files with brief description
 
 ---
 

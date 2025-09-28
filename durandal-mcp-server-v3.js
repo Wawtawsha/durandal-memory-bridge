@@ -193,6 +193,56 @@ class DurandalMCPServer extends EventEmitter {
                                 }
                             }
                         }
+                    },
+                    {
+                        name: 'get_status',
+                        description: 'Get current Durandal MCP server status including memory usage, uptime, database stats, and logging configuration',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {}
+                        }
+                    },
+                    {
+                        name: 'configure_logging',
+                        description: 'Configure console and file logging levels for Durandal MCP server. Console level controls terminal output (quiet), file level controls session history (detailed for debugging).',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                console_level: {
+                                    type: 'string',
+                                    enum: ['error', 'warn', 'info', 'debug'],
+                                    description: 'Log level for console output (what you see in terminal). Default: warn (quiet)'
+                                },
+                                file_level: {
+                                    type: 'string',
+                                    enum: ['error', 'warn', 'info', 'debug'],
+                                    description: 'Log level for file output (detailed session history for debugging). Default: info'
+                                }
+                            }
+                        }
+                    },
+                    {
+                        name: 'get_logs',
+                        description: 'Retrieve recent log entries from Durandal MCP server for debugging and troubleshooting session history',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                lines: {
+                                    type: 'number',
+                                    description: 'Number of recent log lines to retrieve',
+                                    default: 50
+                                },
+                                level_filter: {
+                                    type: 'string',
+                                    enum: ['error', 'warn', 'info', 'debug'],
+                                    description: 'Filter logs by minimum level (e.g., "error" shows only errors and fatal)'
+                                },
+                                search: {
+                                    type: 'string',
+                                    description: 'Search for specific text in log messages'
+                                }
+                            }
+                        }
                     }
                 ]
             };
@@ -222,6 +272,15 @@ class DurandalMCPServer extends EventEmitter {
                         break;
                     case 'optimize_memory':
                         result = await this.handleOptimizeMemory(args, requestId);
+                        break;
+                    case 'get_status':
+                        result = await this.handleGetStatus(args, requestId);
+                        break;
+                    case 'configure_logging':
+                        result = await this.handleConfigureLogging(args, requestId);
+                        break;
+                    case 'get_logs':
+                        result = await this.handleGetLogs(args, requestId);
                         break;
                     default:
                         throw new ValidationError(`Unknown tool: ${toolName}`, 'toolName', toolName);
@@ -502,6 +561,233 @@ class DurandalMCPServer extends EventEmitter {
             content: [{
                 type: 'text',
                 text: `🔧 **Memory Optimization Results:**\n\n${results.join('\n')}`
+            }]
+        };
+    }
+
+    async handleGetStatus(args, requestId) {
+        this.logger.processing('Processing get_status request from Claude');
+
+        const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'durandal-mcp-memory.db');
+        const dbExists = fs.existsSync(dbPath);
+        const dbSize = dbExists ? (fs.statSync(dbPath).size / 1024 / 1024).toFixed(2) : '0.00';
+
+        const memUsage = process.memoryUsage();
+        const uptimeSeconds = process.uptime();
+
+        const statusData = {
+            version: this.packageInfo.version,
+            uptime: formatUptime(uptimeSeconds),
+            memory: {
+                rss: (memUsage.rss / 1024 / 1024).toFixed(2),
+                heapUsed: (memUsage.heapUsed / 1024 / 1024).toFixed(2),
+                heapTotal: (memUsage.heapTotal / 1024 / 1024).toFixed(2)
+            },
+            database: {
+                path: dbPath,
+                connected: dbExists,
+                size: dbSize
+            },
+            cache: {
+                size: this.cache.size,
+                maxSize: this.config.cache.maxSize
+            },
+            logging: {
+                consoleLevel: this.logger.getConsoleLevel(),
+                fileLevel: this.logger.getFileLevel(),
+                logFile: this.logger.logFile
+            },
+            node: process.version,
+            platform: process.platform,
+            pid: process.pid
+        };
+
+        this.logger.success('Status retrieved');
+
+        // Format as nice display
+        let output = '\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n';
+        output += `┃  🎯 Durandal MCP Server v${statusData.version}                         ┃\n`;
+        output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
+        output += `┃  Status:          ${(statusData.database.connected ? '✅ Running' : '⚠️  Database Missing').padEnd(35)}┃\n`;
+        output += `┃  Uptime:          ${statusData.uptime.padEnd(35)}┃\n`;
+        output += `┃  Memory (RSS):    ${(statusData.memory.rss + ' MB').padEnd(35)}┃\n`;
+        output += `┃  Memory (Heap):   ${(statusData.memory.heapUsed + ' / ' + statusData.memory.heapTotal + ' MB').padEnd(35)}┃\n`;
+        output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
+        output += `┃  Database:        ${(statusData.database.connected ? '✅ Connected' : '❌ Not Found').padEnd(35)}┃\n`;
+        output += `┃  Database Size:   ${(statusData.database.size + ' MB').padEnd(35)}┃\n`;
+        output += `┃  Cache Size:      ${(statusData.cache.size + ' / ' + statusData.cache.maxSize).padEnd(35)}┃\n`;
+        output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
+        output += `┃  Console Level:   ${statusData.logging.consoleLevel.padEnd(35)}┃\n`;
+        output += `┃  File Level:      ${statusData.logging.fileLevel.padEnd(35)}┃\n`;
+        output += `┃  Log File:        ~/.durandal-mcp/logs/...              ┃\n`;
+        output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
+        output += `┃  Node Version:    ${statusData.node.padEnd(35)}┃\n`;
+        output += `┃  Platform:        ${statusData.platform.padEnd(35)}┃\n`;
+        output += `┃  Process ID:      ${statusData.pid.toString().padEnd(35)}┃\n`;
+        output += '┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n';
+
+        return {
+            content: [{
+                type: 'text',
+                text: output
+            }]
+        };
+    }
+
+    async handleConfigureLogging(args, requestId) {
+        this.logger.processing('Processing configure_logging request from Claude');
+
+        const { console_level, file_level } = args;
+
+        if (!console_level && !file_level) {
+            throw new ValidationError('Must specify at least one log level', 'console_level or file_level', args);
+        }
+
+        const validLevels = ['error', 'warn', 'info', 'debug'];
+
+        if (console_level && !validLevels.includes(console_level)) {
+            throw new ValidationError(`Invalid console log level: ${console_level}. Must be one of: ${validLevels.join(', ')}`, 'console_level', console_level);
+        }
+
+        if (file_level && !validLevels.includes(file_level)) {
+            throw new ValidationError(`Invalid file log level: ${file_level}. Must be one of: ${validLevels.join(', ')}`, 'file_level', file_level);
+        }
+
+        const envPath = path.join(__dirname, '.env');
+        let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+
+        let updated = [];
+
+        if (console_level) {
+            if (envContent.includes('CONSOLE_LOG_LEVEL=')) {
+                envContent = envContent.replace(/CONSOLE_LOG_LEVEL=.*/g, `CONSOLE_LOG_LEVEL=${console_level}`);
+            } else {
+                envContent += `\nCONSOLE_LOG_LEVEL=${console_level}\n`;
+            }
+
+            if (this.logger.setConsoleLevel(console_level)) {
+                updated.push(`Console level: ${console_level}`);
+            }
+        }
+
+        if (file_level) {
+            if (envContent.includes('FILE_LOG_LEVEL=')) {
+                envContent = envContent.replace(/FILE_LOG_LEVEL=.*/g, `FILE_LOG_LEVEL=${file_level}`);
+            } else {
+                envContent += `\nFILE_LOG_LEVEL=${file_level}\n`;
+            }
+
+            if (this.logger.setFileLevel(file_level)) {
+                updated.push(`File level: ${file_level}`);
+            }
+        }
+
+        fs.writeFileSync(envPath, envContent, 'utf8');
+
+        this.logger.success('Logging configuration updated');
+
+        let output = '✅ **Logging Configuration Updated**\n\n';
+        updated.forEach(change => {
+            output += `- ${change}\n`;
+        });
+        output += '\n**Current Configuration:**\n';
+        output += `- Console Level: ${this.logger.getConsoleLevel()} (terminal output)\n`;
+        output += `- File Level: ${this.logger.getFileLevel()} (session history)\n`;
+        output += `- Log File: ${this.logger.logFile}\n\n`;
+        output += '💡 Changes applied immediately to current session.\n';
+        output += '💡 Configuration saved to .env for future sessions.';
+
+        return {
+            content: [{
+                type: 'text',
+                text: output
+            }]
+        };
+    }
+
+    async handleGetLogs(args, requestId) {
+        this.logger.processing('Processing get_logs request from Claude');
+
+        const { lines = 50, level_filter, search } = args;
+
+        if (!this.logger.logFile || !fs.existsSync(this.logger.logFile)) {
+            throw new ValidationError('No log file found', 'logFile', this.logger.logFile);
+        }
+
+        this.logger.substep('Reading log file');
+
+        // Read log file
+        const logContent = fs.readFileSync(this.logger.logFile, 'utf8');
+        const logLines = logContent.split('\n').filter(line => line.trim());
+
+        // Parse JSON lines
+        let parsedLogs = logLines.map(line => {
+            try {
+                return JSON.parse(line);
+            } catch {
+                return null;
+            }
+        }).filter(log => log !== null);
+
+        this.logger.substep(`Found ${parsedLogs.length} log entries`);
+
+        // Filter by level
+        if (level_filter) {
+            const filterValue = this.logger.levels[level_filter];
+            parsedLogs = parsedLogs.filter(log => {
+                const logLevel = this.logger.levels[log.level];
+                return logLevel >= filterValue;
+            });
+            this.logger.substep(`Filtered to ${parsedLogs.length} entries by level`);
+        }
+
+        // Search filter
+        if (search) {
+            const searchLower = search.toLowerCase();
+            parsedLogs = parsedLogs.filter(log =>
+                log.message.toLowerCase().includes(searchLower) ||
+                JSON.stringify(log).toLowerCase().includes(searchLower)
+            );
+            this.logger.substep(`Filtered to ${parsedLogs.length} entries by search`);
+        }
+
+        // Get most recent N entries
+        const recentLogs = parsedLogs.slice(-lines);
+
+        this.logger.success(`Retrieved ${recentLogs.length} log entries`);
+
+        // Format for display
+        let output = `📋 **Recent Log Entries** (${recentLogs.length} of ${parsedLogs.length} total)\n\n`;
+        output += `Log file: \`${path.basename(this.logger.logFile)}\`\n\n`;
+
+        if (recentLogs.length === 0) {
+            output += '**No matching log entries found.**\n';
+        } else {
+            recentLogs.forEach((log, index) => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                const levelEmoji = {
+                    debug: '🔍',
+                    info: 'ℹ️ ',
+                    warn: '⚠️ ',
+                    error: '❌',
+                    fatal: '🛑'
+                }[log.level] || '📝';
+
+                output += `**${index + 1}.** ${levelEmoji} \`[${log.level.toUpperCase()}]\` ${timestamp}\n`;
+                output += `   ${log.message}\n`;
+
+                if (log.requestId) {
+                    output += `   _Request: ${log.requestId}_\n`;
+                }
+
+                output += `\n`;
+            });
+        }
+
+        return {
+            content: [{
+                type: 'text',
+                text: output
             }]
         };
     }
@@ -1002,80 +1288,97 @@ async function configureLogLevel() {
     console.log('║                                                           ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    console.log('Select your preferred logging level:\n');
+    console.log('Durandal uses separate log levels for console and file output:\n');
+    console.log('  📺 Console Level - What you see in the terminal (quiet)');
+    console.log('  📄 File Level - Session history for debugging (detailed)\n');
+
+    // Console Level Selection
+    console.log('═══════════════════════════════════════════════════════════\n');
+    console.log('1️⃣  Select CONSOLE log level (terminal output):\n');
 
     console.log('┌───────────────────────────────────────────────────────────┐');
     console.log('│  [1] 🔇 ERROR - Only critical errors                      │');
-    console.log('│      └─ Shows: Fatal errors, critical issues             │');
-    console.log('│      └─ Best for: Production, minimal output             │');
-    console.log('├───────────────────────────────────────────────────────────┤');
-    console.log('│  [2] ⚠️  WARN - Warnings and errors (DEFAULT)             │');
-    console.log('│      └─ Shows: Warnings, errors                           │');
-    console.log('│      └─ Best for: Normal operation, catch issues early   │');
-    console.log('├───────────────────────────────────────────────────────────┤');
-    console.log('│  [3] ℹ️  INFO - Informational messages                    │');
-    console.log('│      └─ Shows: Info, warnings, errors                     │');
-    console.log('│      └─ Best for: Monitoring activity, development       │');
-    console.log('├───────────────────────────────────────────────────────────┤');
-    console.log('│  [4] 🔍 DEBUG - Detailed debugging information            │');
-    console.log('│      └─ Shows: Everything (debug, info, warn, error)     │');
-    console.log('│      └─ Best for: Troubleshooting, deep analysis         │');
-    console.log('├───────────────────────────────────────────────────────────┤');
-    console.log('│  [5] 📊 VERBOSE - Maximum detail with MCP tool logging   │');
-    console.log('│      └─ Shows: All logs + MCP tool calls + metadata      │');
-    console.log('│      └─ Best for: Development, performance analysis      │');
+    console.log('│  [2] ⚠️  WARN - Warnings and errors (RECOMMENDED)         │');
+    console.log('│  [3] ℹ️  INFO - Include success messages                  │');
+    console.log('│  [4] 🔍 DEBUG - Everything including substeps             │');
     console.log('└───────────────────────────────────────────────────────────┘\n');
 
-    console.log('┌───────────────────────────────────────────────────────────┐');
-    console.log('│  [0] ← Cancel                                             │');
-    console.log('└───────────────────────────────────────────────────────────┘\n');
-
-    const choice = await question('Enter your choice [1-5, 0 to cancel]: ');
+    const consoleChoice = await question('Console level [1-4, default=2]: ');
 
     const levels = {
         '1': 'error',
         '2': 'warn',
         '3': 'info',
         '4': 'debug',
-        '5': 'verbose'
+        '': 'warn'  // default
     };
 
-    if (choice === '0') {
-        console.log('\n❌ Configuration cancelled\n');
+    if (!levels[consoleChoice]) {
+        console.log('\n❌ Invalid choice\n');
         rl.close();
         return;
     }
 
-    if (levels[choice]) {
-        const selectedLevel = levels[choice];
+    const consoleLevel = levels[consoleChoice];
 
-        const envPath = path.join(__dirname, '.env');
-        let envContent = '';
+    // File Level Selection
+    console.log('\n═══════════════════════════════════════════════════════════\n');
+    console.log('2️⃣  Select FILE log level (session history):\n');
 
-        if (fs.existsSync(envPath)) {
-            envContent = fs.readFileSync(envPath, 'utf8');
-        }
+    console.log('┌───────────────────────────────────────────────────────────┐');
+    console.log('│  [1] 🔇 ERROR - Only errors                               │');
+    console.log('│  [2] ⚠️  WARN - Warnings and errors                       │');
+    console.log('│  [3] ℹ️  INFO - Detailed session history (RECOMMENDED)    │');
+    console.log('│  [4] 🔍 DEBUG - Maximum detail for troubleshooting        │');
+    console.log('└───────────────────────────────────────────────────────────┘\n');
 
-        if (envContent.includes('LOG_LEVEL=')) {
-            envContent = envContent.replace(/LOG_LEVEL=.*/g, `LOG_LEVEL=${selectedLevel}`);
-        } else {
-            envContent += `\nLOG_LEVEL=${selectedLevel}\n`;
-        }
+    const fileChoice = await question('File level [1-4, default=3]: ');
 
-        fs.writeFileSync(envPath, envContent, 'utf8');
-
-        console.log('\n╔═══════════════════════════════════════════════════════════╗');
-        console.log('║                    CONFIGURATION SAVED                    ║');
-        console.log('╚═══════════════════════════════════════════════════════════╝\n');
-
-        console.log(`✅ Log level set to: ${selectedLevel.toUpperCase()}\n`);
-        console.log('To change this later, you can:\n');
-        console.log('  1. Run: durandal-mcp --configure');
-        console.log('  2. Set environment variable: LOG_LEVEL=' + selectedLevel);
-        console.log('  3. Edit your .env file\n');
-    } else {
+    if (!levels[fileChoice] && fileChoice !== '') {
         console.log('\n❌ Invalid choice\n');
+        rl.close();
+        return;
     }
+
+    const fileLevel = fileChoice === '' ? 'info' : levels[fileChoice];
+
+    // Save configuration
+    const envPath = path.join(__dirname, '.env');
+    let envContent = '';
+
+    if (fs.existsSync(envPath)) {
+        envContent = fs.readFileSync(envPath, 'utf8');
+    }
+
+    // Update or add console level
+    if (envContent.includes('CONSOLE_LOG_LEVEL=')) {
+        envContent = envContent.replace(/CONSOLE_LOG_LEVEL=.*/g, `CONSOLE_LOG_LEVEL=${consoleLevel}`);
+    } else {
+        envContent += `\nCONSOLE_LOG_LEVEL=${consoleLevel}\n`;
+    }
+
+    // Update or add file level
+    if (envContent.includes('FILE_LOG_LEVEL=')) {
+        envContent = envContent.replace(/FILE_LOG_LEVEL=.*/g, `FILE_LOG_LEVEL=${fileLevel}`);
+    } else {
+        envContent += `FILE_LOG_LEVEL=${fileLevel}\n`;
+    }
+
+    fs.writeFileSync(envPath, envContent, 'utf8');
+
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║                    CONFIGURATION SAVED                    ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+
+    console.log('✅ Log levels configured:\n');
+    console.log(`   Console Level: ${consoleLevel.toUpperCase()} (terminal output)`);
+    console.log(`   File Level:    ${fileLevel.toUpperCase()} (session history)`);
+    console.log(`   Log File:      ~/.durandal-mcp/logs/durandal-YYYY-MM-DD.log\n`);
+    console.log('💡 Restart the server for changes to take effect.\n');
+    console.log('To change these settings later:\n');
+    console.log('  1. Run: durandal-mcp --configure');
+    console.log('  2. Edit: .env file');
+    console.log('  3. Set env vars: CONSOLE_LOG_LEVEL and FILE_LOG_LEVEL\n');
 
     rl.close();
 }

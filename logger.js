@@ -1,8 +1,9 @@
 /**
  * Durandal MCP Server - Logging System
  *
- * Provides structured logging with configurable levels, optional file output,
- * and comprehensive debug capabilities for the MCP server.
+ * Provides structured logging with separate console and file log levels.
+ * Console: Quiet by default (WARN) - minimal terminal output
+ * File: Detailed by default (INFO) - comprehensive session history for debugging
  */
 
 const fs = require('fs');
@@ -20,17 +21,27 @@ class Logger {
             fatal: 4
         };
 
-        // Configuration from environment or options
-        this.currentLevel = this.levels[process.env.LOG_LEVEL?.toLowerCase()] ??
+        // Separate console and file log levels for user control
+        // Console: Quiet by default (warn) - clean terminal
+        // File: Detailed by default (info) - session history for debugging
+        this.consoleLevel = this.levels[process.env.CONSOLE_LOG_LEVEL?.toLowerCase()] ??
+                           this.levels[process.env.LOG_LEVEL?.toLowerCase()] ??
+                           this.levels[options.consoleLevel?.toLowerCase()] ??
                            this.levels[options.level?.toLowerCase()] ??
                            this.levels.warn;
+
+        this.fileLevel = this.levels[process.env.FILE_LOG_LEVEL?.toLowerCase()] ??
+                        this.levels[process.env.LOG_LEVEL?.toLowerCase()] ??
+                        this.levels[options.fileLevel?.toLowerCase()] ??
+                        this.levels[options.level?.toLowerCase()] ??
+                        this.levels.info;
 
         this.verbose = process.env.VERBOSE === 'true' || options.verbose === true;
         this.debugMode = process.env.DEBUG === 'true' || options.debug === true;
         this.logMCPTools = process.env.LOG_MCP_TOOLS === 'true' || options.logMCPTools === true;
 
-        // File logging configuration
-        this.logFile = process.env.LOG_FILE || options.logFile;
+        // File logging configuration - always-on to default location
+        this.logFile = process.env.LOG_FILE || options.logFile || this.getDefaultLogFile();
         this.errorLogFile = process.env.ERROR_LOG_FILE || options.errorLogFile;
 
         // Color support for terminal output
@@ -55,7 +66,16 @@ class Logger {
         this.initializeFileLogging();
     }
 
+    getDefaultLogFile() {
+        // Default log location: ~/.durandal-mcp/logs/durandal-YYYY-MM-DD.log
+        const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
+        const logDir = path.join(homeDir, '.durandal-mcp', 'logs');
+        const dateStr = new Date().toISOString().split('T')[0];
+        return path.join(logDir, `durandal-${dateStr}.log`);
+    }
+
     initializeFileLogging() {
+        // File logging is always enabled for session history
         if (this.logFile) {
             const logDir = path.dirname(this.logFile);
             if (!fs.existsSync(logDir)) {
@@ -64,6 +84,15 @@ class Logger {
 
             // Create or append to log file
             this.logStream = fs.createWriteStream(this.logFile, { flags: 'a' });
+
+            // Log session start
+            this.logStream.write(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                level: 'info',
+                message: '=== Durandal MCP Server Session Started ===',
+                consoleLevel: Object.keys(this.levels).find(k => this.levels[k] === this.consoleLevel),
+                fileLevel: Object.keys(this.levels).find(k => this.levels[k] === this.fileLevel)
+            }) + '\n');
 
             // Rotate logs if file is too large (10MB)
             this.checkAndRotateLog(this.logFile);
@@ -155,7 +184,7 @@ class Logger {
             if (Object.keys(meta).length > 0) {
                 if (this.verbose) {
                     output += '\n' + util.inspect(meta, { colors: true, depth: null });
-                } else if (this.currentLevel <= this.levels.debug) {
+                } else if (this.consoleLevel <= this.levels.debug) {
                     const metaStr = Object.entries(meta)
                         .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
                         .join(' ');
@@ -172,25 +201,27 @@ class Logger {
     }
 
     log(level, message, meta = {}, emoji = '') {
-        // Fatal errors are ALWAYS displayed
-        if (level !== 'fatal') {
-            const levelValue = this.levels[level];
-            if (levelValue === undefined || levelValue < this.currentLevel) {
-                return;
+        const levelValue = this.levels[level];
+        if (levelValue === undefined) {
+            return;
+        }
+
+        // Fatal errors are ALWAYS displayed on console
+        const shouldDisplayConsole = level === 'fatal' || levelValue >= this.consoleLevel;
+        const shouldLogToFile = levelValue >= this.fileLevel;
+
+        // Console output
+        if (shouldDisplayConsole) {
+            const formattedMessage = this.formatMessage(level, message, meta, emoji);
+            if (level === 'error' || level === 'fatal') {
+                console.error(formattedMessage);
+            } else {
+                console.log(formattedMessage);
             }
         }
 
-        const formattedMessage = this.formatMessage(level, message, meta, emoji);
-
-        // Console output
-        if (level === 'error' || level === 'fatal') {
-            console.error(formattedMessage);
-        } else {
-            console.log(formattedMessage);
-        }
-
-        // File output
-        if (this.logStream) {
+        // File output - always log to file if level is appropriate
+        if (this.logStream && shouldLogToFile) {
             this.logStream.write(JSON.stringify({
                 timestamp: new Date().toISOString(),
                 level,
@@ -199,6 +230,7 @@ class Logger {
             }) + '\n');
         }
 
+        // Error file output
         if (this.errorStream && (level === 'error' || level === 'fatal')) {
             this.errorStream.write(JSON.stringify({
                 timestamp: new Date().toISOString(),
@@ -211,7 +243,7 @@ class Logger {
 
     // Convenience methods
     debug(message, meta = {}) {
-        if (this.debugMode || this.currentLevel <= this.levels.debug) {
+        if (this.debugMode || this.consoleLevel <= this.levels.debug || this.fileLevel <= this.levels.debug) {
             this.log('debug', message, meta);
         }
     }
@@ -233,20 +265,47 @@ class Logger {
     }
 
     processing(message, meta = {}) {
-        if (this.currentLevel <= this.levels.info) {
+        if (this.consoleLevel <= this.levels.info) {
             console.log(`${this.colors.debug}🔄 ${message}${this.colors.reset}`);
+        }
+        // Always log to file at debug level for troubleshooting
+        if (this.logStream && this.fileLevel <= this.levels.debug) {
+            this.logStream.write(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                level: 'debug',
+                message: `[PROCESSING] ${message}`,
+                ...meta
+            }) + '\n');
         }
     }
 
     success(message, meta = {}) {
-        if (this.currentLevel <= this.levels.info) {
+        if (this.consoleLevel <= this.levels.info) {
             this.log('info', message, meta, '✅');
+        }
+        // Always log to file for session history
+        if (this.logStream && this.fileLevel <= this.levels.info) {
+            this.logStream.write(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                level: 'info',
+                message: `[SUCCESS] ${message}`,
+                ...meta
+            }) + '\n');
         }
     }
 
     substep(message, meta = {}) {
-        if (this.debugMode || this.currentLevel <= this.levels.debug) {
+        if (this.debugMode || this.consoleLevel <= this.levels.debug) {
             console.log(`${this.colors.dim}  └─ ${message}${this.colors.reset}`);
+        }
+        // Always log substeps to file for detailed troubleshooting
+        if (this.logStream && this.fileLevel <= this.levels.debug) {
+            this.logStream.write(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                level: 'debug',
+                message: `[SUBSTEP] ${message}`,
+                ...meta
+            }) + '\n');
         }
     }
 
@@ -324,14 +383,43 @@ class Logger {
     // Configuration logging
     logConfiguration(config) {
         this.info('Server Configuration', {
-            logLevel: Object.keys(this.levels).find(key => this.levels[key] === this.currentLevel),
+            consoleLogLevel: Object.keys(this.levels).find(key => this.levels[key] === this.consoleLevel),
+            fileLogLevel: Object.keys(this.levels).find(key => this.levels[key] === this.fileLevel),
             verbose: this.verbose,
             debug: this.debug,
             logMCPTools: this.logMCPTools,
-            fileLogging: !!this.logFile,
+            logFile: this.logFile,
             errorFileLogging: !!this.errorLogFile,
             ...config
         });
+    }
+
+    // Getters for current log levels
+    getConsoleLevel() {
+        return Object.keys(this.levels).find(key => this.levels[key] === this.consoleLevel);
+    }
+
+    getFileLevel() {
+        return Object.keys(this.levels).find(key => this.levels[key] === this.fileLevel);
+    }
+
+    // Setters for log levels (runtime configuration)
+    setConsoleLevel(level) {
+        const levelValue = this.levels[level?.toLowerCase()];
+        if (levelValue !== undefined) {
+            this.consoleLevel = levelValue;
+            return true;
+        }
+        return false;
+    }
+
+    setFileLevel(level) {
+        const levelValue = this.levels[level?.toLowerCase()];
+        if (levelValue !== undefined) {
+            this.fileLevel = levelValue;
+            return true;
+        }
+        return false;
     }
 
     // Close file streams
