@@ -30,6 +30,9 @@ class DurandalMCPServer extends EventEmitter {
     constructor(options = {}) {
         super();
 
+        // Load persisted config from ~/.durandal-mcp/.env
+        this.loadPersistedConfig();
+
         // Initialize logger first
         this.logger = new Logger({
             level: options.logLevel || process.env.LOG_LEVEL || 'warn',
@@ -47,7 +50,7 @@ class DurandalMCPServer extends EventEmitter {
         this.packageInfo = this.loadPackageInfo();
 
         // Log startup
-        this.logger.info('🚀 Durandal MCP Server starting', {
+        this.logger.info('[START] Durandal MCP Server starting', {
             version: this.packageInfo.version,
             node: process.version,
             pid: process.pid
@@ -106,6 +109,31 @@ class DurandalMCPServer extends EventEmitter {
         } catch (error) {
             this.logger?.warn('Could not load package.json', { error: error.message });
             return { version: '3.0.0', description: 'Durandal MCP Server' };
+        }
+    }
+
+    loadPersistedConfig() {
+        try {
+            const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
+            const envPath = path.join(homeDir, '.durandal-mcp', '.env');
+
+            if (fs.existsSync(envPath)) {
+                const envContent = fs.readFileSync(envPath, 'utf8');
+                const lines = envContent.split('\n');
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (trimmed && !trimmed.startsWith('#')) {
+                        const [key, value] = trimmed.split('=');
+                        if (key && value && !process.env[key]) {
+                            // Only set if not already in environment
+                            process.env[key] = value;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            // Silently fail - config loading shouldn't break server
         }
     }
 
@@ -299,7 +327,7 @@ class DurandalMCPServer extends EventEmitter {
                 return {
                     content: [{
                         type: 'text',
-                        text: `❌ Error: ${errorResponse.error.message}\n\nRecovery: ${errorResponse.error.recovery || 'Check logs for details'}`
+                        text: `[ERR] Error: ${errorResponse.error.message}\n\nRecovery: ${errorResponse.error.recovery || 'Check logs for details'}`
                     }]
                 };
             }
@@ -364,7 +392,7 @@ class DurandalMCPServer extends EventEmitter {
         return {
             content: [{
                 type: 'text',
-                text: `✅ Memory stored successfully\n\n` +
+                text: `[OK] Memory stored successfully\n\n` +
                       `**ID:** ${memoryId}\n` +
                       `**Importance:** ${enrichedMetadata.importance || 'Not set'}\n` +
                       `**Categories:** ${enrichedMetadata.categories?.join(', ') || 'None'}\n` +
@@ -522,21 +550,21 @@ class DurandalMCPServer extends EventEmitter {
                 switch (operation) {
                     case 'cache_optimization':
                         const cacheResult = this.optimizeCache();
-                        results.push(`✅ Cache optimization: Evicted ${cacheResult.evicted} items`);
+                        results.push(`[OK] Cache optimization: Evicted ${cacheResult.evicted} items`);
                         break;
 
                     case 'retention_review':
                         const retentionResult = await this.reviewRetention();
-                        results.push(`✅ Retention review: Archived ${retentionResult.archived} old memories`);
+                        results.push(`[OK] Retention review: Archived ${retentionResult.archived} old memories`);
                         break;
 
                     case 'pattern_analysis':
                         const patternResult = this.analyzePatterns();
-                        results.push(`✅ Pattern analysis: Found ${patternResult.patterns} access patterns`);
+                        results.push(`[OK] Pattern analysis: Found ${patternResult.patterns} access patterns`);
                         break;
 
                     case 'relationship_update':
-                        results.push(`✅ Relationship update: Feature in development`);
+                        results.push(`[OK] Relationship update: Feature in development`);
                         break;
 
                     default:
@@ -547,7 +575,7 @@ class DurandalMCPServer extends EventEmitter {
                     requestId,
                     error: error.message
                 });
-                results.push(`❌ ${operation} failed: ${error.message}`);
+                results.push(`[ERR] ${operation} failed: ${error.message}`);
             }
         }
 
@@ -606,14 +634,14 @@ class DurandalMCPServer extends EventEmitter {
 
         // Format as nice display
         let output = '\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n';
-        output += `┃  🎯 Durandal MCP Server v${statusData.version}                         ┃\n`;
+        output += `┃  Durandal MCP Server v${statusData.version}                              ┃\n`;
         output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
-        output += `┃  Status:          ${(statusData.database.connected ? '✅ Running' : '⚠️  Database Missing').padEnd(35)}┃\n`;
+        output += `┃  Status:          ${(statusData.database.connected ? '[OK] Running' : '[WARN] Database Missing').padEnd(35)}┃\n`;
         output += `┃  Uptime:          ${statusData.uptime.padEnd(35)}┃\n`;
         output += `┃  Memory (RSS):    ${(statusData.memory.rss + ' MB').padEnd(35)}┃\n`;
         output += `┃  Memory (Heap):   ${(statusData.memory.heapUsed + ' / ' + statusData.memory.heapTotal + ' MB').padEnd(35)}┃\n`;
         output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
-        output += `┃  Database:        ${(statusData.database.connected ? '✅ Connected' : '❌ Not Found').padEnd(35)}┃\n`;
+        output += `┃  Database:        ${(statusData.database.connected ? '[OK] Connected' : '[ERR] Not Found').padEnd(35)}┃\n`;
         output += `┃  Database Size:   ${(statusData.database.size + ' MB').padEnd(35)}┃\n`;
         output += `┃  Cache Size:      ${(statusData.cache.size + ' / ' + statusData.cache.maxSize).padEnd(35)}┃\n`;
         output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
@@ -653,7 +681,12 @@ class DurandalMCPServer extends EventEmitter {
             throw new ValidationError(`Invalid file log level: ${file_level}. Must be one of: ${validLevels.join(', ')}`, 'file_level', file_level);
         }
 
-        const envPath = path.join(__dirname, '.env');
+        const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
+        const configDir = path.join(homeDir, '.durandal-mcp');
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+        const envPath = path.join(configDir, '.env');
         let envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
 
         let updated = [];
@@ -682,11 +715,17 @@ class DurandalMCPServer extends EventEmitter {
             }
         }
 
-        fs.writeFileSync(envPath, envContent, 'utf8');
+        try {
+            fs.writeFileSync(envPath, envContent.trim() + '\n', 'utf8');
+            this.logger.info('Config file written successfully to:', envPath);
+        } catch (error) {
+            this.logger.error('Failed to write config file:', error);
+            throw new Error(`Failed to save configuration: ${error.message}`);
+        }
 
         this.logger.success('Logging configuration updated');
 
-        let output = '✅ **Logging Configuration Updated**\n\n';
+        let output = '[OK] **Logging Configuration Updated**\n\n';
         updated.forEach(change => {
             output += `- ${change}\n`;
         });
@@ -768,8 +807,8 @@ class DurandalMCPServer extends EventEmitter {
                 const levelEmoji = {
                     debug: '🔍',
                     info: 'ℹ️ ',
-                    warn: '⚠️ ',
-                    error: '❌',
+                    warn: '[WARN] ',
+                    error: '[ERR] ',
                     fatal: '🛑'
                 }[log.level] || '📝';
 
@@ -1040,7 +1079,7 @@ class DurandalMCPServer extends EventEmitter {
         const transport = new StdioServerTransport();
         await this.server.connect(transport);
 
-        this.logger.info('🚀 Durandal MCP Server running', {
+        this.logger.info('[START] Durandal MCP Server running', {
             transport: 'stdio',
             features: ['logging', 'testing', 'debug', 'error-handling']
         });
@@ -1067,7 +1106,7 @@ class DurandalMCPServer extends EventEmitter {
     }
 
     async shutdown() {
-        this.logger.info('🛑 Shutting down Durandal MCP Server');
+        this.logger.info('[STOP] Shutting down Durandal MCP Server');
 
         // Close database connections
         if (this.db?.close) {
@@ -1184,7 +1223,7 @@ SQLite3: ${pkg.dependencies.sqlite3}
                 const success = await updateChecker.performUpdate({ confirm: false });
                 process.exit(success ? 0 : 1);
             } catch (error) {
-                console.error('\n❌ Update failed:', error.message);
+                console.error('\n[ERR] Update failed:', error.message);
                 console.log('\nYou can update manually with:');
                 console.log('  npm install -g durandal-memory-mcp@latest\n');
                 process.exit(1);
@@ -1253,17 +1292,17 @@ function formatUptime(seconds) {
 }
 
 function displayStatusSummary(data) {
-    const statusEmoji = data.status === 'running' ? '✅' : '🛑';
+    const statusEmoji = data.status === 'running' ? '[OK]' : '[STOP]';
 
     console.log('\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓');
-    console.log(`┃  🎯 Durandal MCP Server v${data.version}                         ┃`);
+    console.log(`┃  Durandal MCP Server v${data.version}                              ┃`);
     console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
-    console.log(`┃  Status:          ${statusEmoji} ${data.status.charAt(0).toUpperCase() + data.status.slice(1).padEnd(32)}┃`);
+    console.log(`┃  Status:          ${statusEmoji} ${data.status.charAt(0).toUpperCase() + data.status.slice(1).padEnd(29)}┃`);
     console.log(`┃  Uptime:          ${data.uptime.padEnd(35)}┃`);
     console.log(`┃  Memory (RSS):    ${(data.memory.rss + ' MB').padEnd(35)}┃`);
     console.log(`┃  Memory (Heap):   ${(data.memory.heapUsed + ' / ' + data.memory.heapTotal + ' MB').padEnd(35)}┃`);
     console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
-    console.log(`┃  Database:        ${(data.database.exists ? '✅ Connected' : '❌ Not Found').padEnd(35)}┃`);
+    console.log(`┃  Database:        ${(data.database.exists ? '[OK] Connected' : '[ERR] Not Found').padEnd(35)}┃`);
     console.log(`┃  Database Size:   ${(data.database.size + ' MB').padEnd(35)}┃`);
     console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
     console.log(`┃  Node Version:    ${data.node.padEnd(35)}┃`);
@@ -1298,7 +1337,7 @@ async function configureLogLevel() {
 
     console.log('┌───────────────────────────────────────────────────────────┐');
     console.log('│  [1] 🔇 ERROR - Only critical errors                      │');
-    console.log('│  [2] ⚠️  WARN - Warnings and errors (RECOMMENDED)         │');
+    console.log('│  [2] WARN - Warnings and errors (RECOMMENDED)             │');
     console.log('│  [3] ℹ️  INFO - Include success messages                  │');
     console.log('│  [4] 🔍 DEBUG - Everything including substeps             │');
     console.log('└───────────────────────────────────────────────────────────┘\n');
@@ -1314,7 +1353,7 @@ async function configureLogLevel() {
     };
 
     if (!levels[consoleChoice]) {
-        console.log('\n❌ Invalid choice\n');
+        console.log('\n[ERR] Invalid choice\n');
         rl.close();
         return;
     }
@@ -1327,7 +1366,7 @@ async function configureLogLevel() {
 
     console.log('┌───────────────────────────────────────────────────────────┐');
     console.log('│  [1] 🔇 ERROR - Only errors                               │');
-    console.log('│  [2] ⚠️  WARN - Warnings and errors                       │');
+    console.log('│  [2] WARN - Warnings and errors                           │');
     console.log('│  [3] ℹ️  INFO - Detailed session history (RECOMMENDED)    │');
     console.log('│  [4] 🔍 DEBUG - Maximum detail for troubleshooting        │');
     console.log('└───────────────────────────────────────────────────────────┘\n');
@@ -1335,7 +1374,7 @@ async function configureLogLevel() {
     const fileChoice = await question('File level [1-4, default=3]: ');
 
     if (!levels[fileChoice] && fileChoice !== '') {
-        console.log('\n❌ Invalid choice\n');
+        console.log('\n[ERR] Invalid choice\n');
         rl.close();
         return;
     }
@@ -1370,7 +1409,7 @@ async function configureLogLevel() {
     console.log('║                    CONFIGURATION SAVED                    ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    console.log('✅ Log levels configured:\n');
+    console.log('[OK] Log levels configured:\n');
     console.log(`   Console Level: ${consoleLevel.toUpperCase()} (terminal output)`);
     console.log(`   File Level:    ${fileLevel.toUpperCase()} (session history)`);
     console.log(`   Log File:      ~/.durandal-mcp/logs/durandal-YYYY-MM-DD.log\n`);

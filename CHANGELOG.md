@@ -5,6 +5,27 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2] - 2025-09-28
+
+### Core Change: Bug Fixes
+Fixed log level persistence and removed emojis from MCP tool responses.
+
+### What This Means for Users
+- Log level settings now persist between server restarts
+- Status display no longer uses emojis (better terminal compatibility)
+- Configuration saved to `~/.durandal-mcp/.env`
+
+### Bugs Fixed
+- **Log level persistence**: Settings now save to user home directory
+- **Emoji removal**: Status display uses [OK]/[ERR] instead of checkmarks/crosses
+- **Config loading**: Server loads persisted settings on startup
+
+### Files Changed
+- `durandal-mcp-server-v3.js` - Config persistence and emoji removal
+- `package.json` - Version 3.1.2
+
+---
+
 ## [3.1.1] - 2025-09-28
 
 ### Core Change: Documentation Polish
