@@ -17,7 +17,7 @@ class MCPDatabaseClient {
     initializeSQLite() {
         const sqlite3 = require('sqlite3').verbose();
 
-        console.log(`📊 Database: Using SQLite at ${this.dbPath}`);
+        console.log(`[DB] Database: Using SQLite at ${this.dbPath}`);
 
         this.client = new sqlite3.Database(this.dbPath, (err) => {
             if (err) {
@@ -77,7 +77,7 @@ class MCPDatabaseClient {
                     console.error('SQLite schema initialization failed:', err.message);
                     reject(err);
                 } else {
-                    console.log('✅ SQLite schema initialized');
+                    console.log('[OK] SQLite schema initialized');
                     this.initialized = true;
                     resolve();
                 }

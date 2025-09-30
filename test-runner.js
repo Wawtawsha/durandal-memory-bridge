@@ -22,7 +22,7 @@ class TestRunner {
      * Run all tests
      */
     async runAllTests() {
-        console.log('🧪 Running Durandal MCP Server Tests...\n');
+        console.log('Running Durandal MCP Server Tests...\n');
         console.log('=' . repeat(50));
 
         // Database tests
@@ -72,14 +72,14 @@ class TestRunner {
             test.duration = Date.now() - test.started;
             this.passed++;
 
-            console.log(` ✅ (${test.duration}ms)`);
+            console.log(` [PASS] (${test.duration}ms)`);
         } catch (error) {
             test.status = 'failed';
             test.duration = Date.now() - test.started;
             test.error = error.message;
             this.failed++;
 
-            console.log(` ❌ (${test.duration}ms)`);
+            console.log(` [FAIL] (${test.duration}ms)`);
             console.log(`    Error: ${error.message}`);
 
             if (process.env.VERBOSE === 'true') {
@@ -348,7 +348,7 @@ class TestRunner {
         const storePerOp = storeTime / iterations;
 
         if (storePerOp > 50) {
-            console.warn(`    ⚠️  Storage performance: ${storePerOp.toFixed(2)}ms per operation (>50ms)`);
+            console.warn(`    [WARN] Storage performance: ${storePerOp.toFixed(2)}ms per operation (>50ms)`);
         }
 
         // Benchmark search
@@ -360,7 +360,7 @@ class TestRunner {
         const searchPerOp = searchTime / 10;
 
         if (searchPerOp > 100) {
-            console.warn(`    ⚠️  Search performance: ${searchPerOp.toFixed(2)}ms per operation (>100ms)`);
+            console.warn(`    [WARN] Search performance: ${searchPerOp.toFixed(2)}ms per operation (>100ms)`);
         }
 
         await db.close();
@@ -373,18 +373,18 @@ class TestRunner {
         const totalTime = Date.now() - this.startTime;
 
         console.log('\n' + '=' . repeat(50));
-        console.log('📊 Test Summary:');
+        console.log('Test Summary:');
         console.log('=' . repeat(50));
 
         console.log(`\n  Total Tests: ${this.tests.length}`);
-        console.log(`  ✅ Passed: ${this.passed}`);
-        console.log(`  ❌ Failed: ${this.failed}`);
-        console.log(`  ⏱️  Duration: ${totalTime}ms`);
+        console.log(`  [PASS] Passed: ${this.passed}`);
+        console.log(`  [FAIL] Failed: ${this.failed}`);
+        console.log(`  Duration: ${totalTime}ms`);
 
         if (this.failed === 0) {
-            console.log('\n🎉 All tests passed!');
+            console.log('\n[SUCCESS] All tests passed!');
         } else {
-            console.log('\n⚠️  Some tests failed. Run with VERBOSE=true for more details.');
+            console.log('\n[WARN] Some tests failed. Run with VERBOSE=true for more details.');
 
             // List failed tests
             console.log('\nFailed tests:');

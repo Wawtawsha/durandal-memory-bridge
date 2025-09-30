@@ -445,7 +445,7 @@ class DurandalMCPServer extends EventEmitter {
             return {
                 content: [{
                     type: 'text',
-                    text: '🔍 No memories found matching your query.'
+                    text: 'No memories found matching your query.'
                 }]
             };
         }
@@ -462,7 +462,7 @@ class DurandalMCPServer extends EventEmitter {
         return {
             content: [{
                 type: 'text',
-                text: `🔍 **Search Results** (${allResults.length} found)\n\n${formattedResults}`
+                text: `**Search Results** (${allResults.length} found)\n\n${formattedResults}`
             }]
         };
     }
@@ -508,7 +508,7 @@ class DurandalMCPServer extends EventEmitter {
         });
 
         // Format response
-        let response = `📚 **Context for Project: ${project}, Session: ${session}**\n\n`;
+        let response = `**Context for Project: ${project}, Session: ${session}**\n\n`;
 
         if (recentMemories.length > 0) {
             response += '**Recent Memories:**\n';
@@ -588,7 +588,7 @@ class DurandalMCPServer extends EventEmitter {
         return {
             content: [{
                 type: 'text',
-                text: `🔧 **Memory Optimization Results:**\n\n${results.join('\n')}`
+                text: `[OK] **Memory Optimization Results:**\n\n${results.join('\n')}`
             }]
         };
     }
@@ -733,8 +733,8 @@ class DurandalMCPServer extends EventEmitter {
         output += `- Console Level: ${this.logger.getConsoleLevel()} (terminal output)\n`;
         output += `- File Level: ${this.logger.getFileLevel()} (session history)\n`;
         output += `- Log File: ${this.logger.logFile}\n\n`;
-        output += '💡 Changes applied immediately to current session.\n';
-        output += '💡 Configuration saved to .env for future sessions.';
+        output += 'Changes applied immediately to current session.\n';
+        output += 'Configuration saved to .env for future sessions.';
 
         return {
             content: [{
@@ -796,7 +796,7 @@ class DurandalMCPServer extends EventEmitter {
         this.logger.success(`Retrieved ${recentLogs.length} log entries`);
 
         // Format for display
-        let output = `📋 **Recent Log Entries** (${recentLogs.length} of ${parsedLogs.length} total)\n\n`;
+        let output = `**Recent Log Entries** (${recentLogs.length} of ${parsedLogs.length} total)\n\n`;
         output += `Log file: \`${path.basename(this.logger.logFile)}\`\n\n`;
 
         if (recentLogs.length === 0) {
@@ -805,12 +805,12 @@ class DurandalMCPServer extends EventEmitter {
             recentLogs.forEach((log, index) => {
                 const timestamp = new Date(log.timestamp).toLocaleString();
                 const levelEmoji = {
-                    debug: '🔍',
-                    info: 'ℹ️ ',
+                    debug: '[DEBUG]',
+                    info: '[INFO] ',
                     warn: '[WARN] ',
                     error: '[ERR] ',
-                    fatal: '🛑'
-                }[log.level] || '📝';
+                    fatal: '[FATAL]'
+                }[log.level] || '[LOG]  ';
 
                 output += `**${index + 1}.** ${levelEmoji} \`[${log.level.toUpperCase()}]\` ${timestamp}\n`;
                 output += `   ${log.message}\n`;
@@ -1174,7 +1174,7 @@ SQLite3: ${pkg.dependencies.sqlite3}
         }
 
         if (args.includes('--test')) {
-            console.log('🧪 Running Durandal MCP Server Tests\n');
+            console.log('Running Durandal MCP Server Tests\n');
             const logger = new Logger({ level: 'info' });
             const runner = new TestRunner(logger);
             const success = await runner.runAllTests();
@@ -1214,7 +1214,7 @@ SQLite3: ${pkg.dependencies.sqlite3}
         }
 
         if (args.includes('--update')) {
-            console.log('🔄 Durandal MCP Update Tool\n');
+            console.log('Durandal MCP Update Tool\n');
             const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
             const logger = new Logger({ level: 'info' });
             const updateChecker = new UpdateChecker(pkg, logger);
@@ -1323,23 +1323,23 @@ async function configureLogLevel() {
     console.clear();
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log('║                                                           ║');
-    console.log('║           🔧 DURANDAL LOG LEVEL CONFIGURATION             ║');
+    console.log('║           DURANDAL LOG LEVEL CONFIGURATION                ║');
     console.log('║                                                           ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
     console.log('Durandal uses separate log levels for console and file output:\n');
-    console.log('  📺 Console Level - What you see in the terminal (quiet)');
-    console.log('  📄 File Level - Session history for debugging (detailed)\n');
+    console.log('  Console Level - What you see in the terminal (quiet)');
+    console.log('  File Level - Session history for debugging (detailed)\n');
 
     // Console Level Selection
     console.log('═══════════════════════════════════════════════════════════\n');
-    console.log('1️⃣  Select CONSOLE log level (terminal output):\n');
+    console.log('1. Select CONSOLE log level (terminal output):\n');
 
     console.log('┌───────────────────────────────────────────────────────────┐');
-    console.log('│  [1] 🔇 ERROR - Only critical errors                      │');
+    console.log('│  [1] ERROR - Only critical errors                         │');
     console.log('│  [2] WARN - Warnings and errors (RECOMMENDED)             │');
-    console.log('│  [3] ℹ️  INFO - Include success messages                  │');
-    console.log('│  [4] 🔍 DEBUG - Everything including substeps             │');
+    console.log('│  [3] INFO - Include success messages                      │');
+    console.log('│  [4] DEBUG - Everything including substeps                │');
     console.log('└───────────────────────────────────────────────────────────┘\n');
 
     const consoleChoice = await question('Console level [1-4, default=2]: ');
@@ -1362,10 +1362,10 @@ async function configureLogLevel() {
 
     // File Level Selection
     console.log('\n═══════════════════════════════════════════════════════════\n');
-    console.log('2️⃣  Select FILE log level (session history):\n');
+    console.log('2. Select FILE log level (session history):\n');
 
     console.log('┌───────────────────────────────────────────────────────────┐');
-    console.log('│  [1] 🔇 ERROR - Only errors                               │');
+    console.log('│  [1] ERROR - Only errors                                  │');
     console.log('│  [2] WARN - Warnings and errors                           │');
     console.log('│  [3] ℹ️  INFO - Detailed session history (RECOMMENDED)    │');
     console.log('│  [4] 🔍 DEBUG - Maximum detail for troubleshooting        │');

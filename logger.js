@@ -266,7 +266,7 @@ class Logger {
 
     processing(message, meta = {}) {
         if (this.consoleLevel <= this.levels.info) {
-            console.log(`${this.colors.debug}🔄 ${message}${this.colors.reset}`);
+            console.log(`${this.colors.debug}[PROCESSING] ${message}${this.colors.reset}`);
         }
         // Always log to file at debug level for troubleshooting
         if (this.logStream && this.fileLevel <= this.levels.debug) {
