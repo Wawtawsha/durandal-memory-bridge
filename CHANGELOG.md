@@ -5,6 +5,38 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.7] - 2025-09-30
+
+### Core Change: Fix Database Status Reporting
+Fixed critical bug where status commands incorrectly reported "Database Missing" even when database exists and is being used.
+
+### What This Means for Users
+- **Status now shows correct database state** - No more false "Database Missing" errors
+- **Accurate database path reporting** - Shows the actual database being used
+- **Consistent with resolution logic** - Status uses same database detection as server
+
+### Critical Bug Fixed
+The status command was looking for the database in the wrong location (script directory) instead of using the smart resolution logic that finds databases in current directory or home directory.
+
+### Before and After
+**Before (v3.1.6):**
+```
+Database:        [ERR] Not Found     // Wrong!
+Database Size:   0.00 MB
+```
+
+**After (v3.1.7):**
+```
+Database:        [OK] Connected      // Correct!
+Database Size:   0.09 MB
+```
+
+### Files Changed
+- `durandal-mcp-server-v3.js` - Fixed `handleGetStatus()` and CLI `--status` to use actual resolved database path
+- `package.json` - Version 3.1.7
+
+---
+
 ## [3.1.6] - 2025-09-30
 
 ### Core Change: Smart Database Resolution

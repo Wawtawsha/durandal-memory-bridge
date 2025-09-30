@@ -852,7 +852,8 @@ class DurandalMCPServer extends EventEmitter {
     async handleGetStatus(args, requestId) {
         this.logger.processing('Processing get_status request from Claude');
 
-        const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'durandal-mcp-memory.db');
+        // Use the actual database path that was resolved
+        const dbPath = this.db.db.dbPath;
         const dbExists = fs.existsSync(dbPath);
         const dbSize = dbExists ? (fs.statSync(dbPath).size / 1024 / 1024).toFixed(2) : '0.00';
 
@@ -1439,7 +1440,12 @@ SQLite3: ${pkg.dependencies.sqlite3}
 
         if (args.includes('--status')) {
             const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-            const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'durandal-mcp-memory.db');
+
+            // Use the same database resolution logic as the server
+            const MCPDatabaseClient = require('./mcp-db-client');
+            const tempClient = new MCPDatabaseClient();
+            const dbPath = tempClient.dbPath;
+            tempClient.close();  // Clean up
 
             const statusData = {
                 version: pkg.version,
