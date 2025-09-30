@@ -5,6 +5,28 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.5] - 2025-09-30
+
+### Core Change: Critical Database Method Fixes
+Fixed critical bugs where memories were stored in wrong table and context retrieval used incorrect methods.
+
+### Bug Fixes
+- **Memory Storage Fixed** - Changed from `storeMessage` to `storeMemory` to store in correct table
+- **Context Retrieval Fixed** - Added proper `getRecentMemories` method that queries memories table
+- **Removed Legacy Code** - Removed unused project/session methods that referenced non-existent tables
+
+### What Was Wrong
+- Memories were being stored in `conversation_messages` table via `storeMessage`
+- But search was looking in `memories` table, so stored memories couldn't be found
+- Context retrieval was trying to use old project/session table structure
+- Code was mixing two different database architectures
+
+### Testing
+- All 9 unit tests pass
+- Verified store/search/context/list all work correctly with projects
+
+---
+
 ## [3.2.4] - 2025-09-30
 
 ### Core Change: Fix Project Search Bug

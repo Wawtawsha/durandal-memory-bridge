@@ -772,7 +772,7 @@ class DurandalMCPServer extends EventEmitter {
         this.logger.substep('Retrieving recent memories');
 
         // Get recent memories from database
-        const recentMemories = await this.db.getRecentMessages(project, session, limit).catch(error => {
+        const recentMemories = await this.getRecentMemories(project, session, limit).catch(error => {
             this.logger.warn('Failed to get recent memories from database', {
                 requestId,
                 error: error.message
@@ -1388,31 +1388,58 @@ class DurandalMCPServer extends EventEmitter {
 
     async storeInDatabase(memoryId, content, metadata) {
         try {
-            const project = await this.getOrCreateProject(metadata.project || 'default');
-            const session = await this.getOrCreateSession(project.id, metadata.session || 'default');
+            // Store directly in memories table with project/session in metadata
+            await this.db.storeMemory(content, metadata);
 
-            await this.db.storeMessage(session.id, 'user', content, metadata);
-
-            this.logger.debug('Stored in database', { memoryId, project: project.name, session: session.session_name });
+            this.logger.debug('Stored in database', {
+                memoryId,
+                project: metadata.project || 'default',
+                session: metadata.session || 'current'
+            });
         } catch (error) {
             throw new DatabaseError('Failed to store memory in database', 'store', error);
         }
     }
 
-    async getOrCreateProject(projectName) {
-        let project = await this.db.getProjectByName(projectName);
-        if (!project) {
-            project = await this.db.createProject(projectName);
-        }
-        return project;
-    }
+    // Note: Project and session are now stored in memory metadata
+    // The old project/session tables are not used for MCP memories
 
-    async getOrCreateSession(projectId, sessionName) {
-        let session = await this.db.getSessionByName(projectId, sessionName);
-        if (!session) {
-            session = await this.db.createSession(projectId, sessionName);
+    async getRecentMemories(project, session, limit) {
+        try {
+            let query = `
+                SELECT id, content, metadata, created_at
+                FROM memories
+                WHERE 1=1
+            `;
+            const params = [];
+
+            // Add project filter
+            if (project && project !== 'default') {
+                query += ` AND json_extract(metadata, '$.project') = ?`;
+                params.push(project);
+            }
+
+            // Add session filter
+            if (session && session !== 'default') {
+                query += ` AND json_extract(metadata, '$.session') = ?`;
+                params.push(session);
+            }
+
+            query += ` ORDER BY created_at DESC LIMIT ?`;
+            params.push(limit);
+
+            const result = await this.db.db.query(query, params);
+
+            return result.rows.map(row => ({
+                id: row.id,
+                content: row.content,
+                metadata: row.metadata ? JSON.parse(row.metadata) : {},
+                timestamp: row.created_at
+            }));
+        } catch (error) {
+            this.logger.error('Failed to get recent memories', { error: error.message });
+            return [];
         }
-        return session;
     }
 
     searchCache(query, filters) {
