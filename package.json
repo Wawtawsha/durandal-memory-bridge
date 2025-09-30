@@ -1,10 +1,13 @@
 {
   "name": "durandal-memory-mcp",
-  "version": "3.2.2",
+  "version": "3.2.3",
   "description": "Durandal MCP Server - Zero-config AI memory system for Claude Code. Persistent, searchable memory with automatic SQLite setup.",
   "main": "durandal-mcp-server-v3.js",
   "bin": {
-    "durandal-mcp": "durandal-mcp-server-v3.js"
+    "durandal-mcp": "durandal-mcp-server-v3.js",
+    "durandal-assign-projects": "assign-projects.js",
+    "durandal-migrate": "db-migrate.js",
+    "durandal-discover": "db-discovery.js"
   },
   "files": [
     "durandal-mcp-server-v3.js",

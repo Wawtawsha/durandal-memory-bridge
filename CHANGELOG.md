@@ -5,6 +5,25 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.3] - 2025-09-30
+
+### Core Change: Global Commands for Tools
+Added all tools as global commands for easier access after npm install -g.
+
+### New Global Commands
+- `durandal-assign-projects` - Run project assignment tool from anywhere
+- `durandal-migrate` - Run database migration tool from anywhere
+- `durandal-discover` - Run database discovery tool from anywhere
+- `durandal-mcp` - Main MCP server (unchanged)
+
+### Usage
+After updating with `npm update -g durandal-memory-mcp`, users can run:
+- `durandal-assign-projects` instead of finding and running `node assign-projects.js`
+- `durandal-migrate` instead of `durandal-mcp --migrate`
+- `durandal-discover` instead of `durandal-mcp --discover`
+
+---
+
 ## [3.2.2] - 2025-09-30
 
 ### Core Change: Project Assignment Tool
