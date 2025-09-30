@@ -527,6 +527,26 @@ class DurandalMCPServer extends EventEmitter {
                                 }
                             }
                         }
+                    },
+                    {
+                        name: 'list_projects_sessions',
+                        description: 'List all projects and sessions with memory counts',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                type: {
+                                    type: 'string',
+                                    enum: ['projects', 'sessions', 'both'],
+                                    description: 'What to list: projects, sessions, or both',
+                                    default: 'both'
+                                },
+                                include_samples: {
+                                    type: 'boolean',
+                                    description: 'Include sample memories from each project/session',
+                                    default: false
+                                }
+                            }
+                        }
                     }
                 ]
             };
@@ -565,6 +585,9 @@ class DurandalMCPServer extends EventEmitter {
                         break;
                     case 'get_logs':
                         result = await this.handleGetLogs(args, requestId);
+                        break;
+                    case 'list_projects_sessions':
+                        result = await this.handleListProjectsSessions(args, requestId);
                         break;
                     default:
                         throw new ValidationError(`Unknown tool: ${toolName}`, 'toolName', toolName);
@@ -1133,6 +1156,158 @@ class DurandalMCPServer extends EventEmitter {
         };
     }
 
+    async handleListProjectsSessions(args, requestId) {
+        this.logger.processing('Processing list_projects_sessions request from Claude');
+
+        const listType = args.type || 'both';
+        const includeSamples = args.include_samples || false;
+
+        let output = '';
+        const results = {};
+
+        // Get projects if requested
+        if (listType === 'projects' || listType === 'both') {
+            try {
+                const projectsResult = await this.db.db.query(`
+                    SELECT
+                        json_extract(metadata, '$.project') as project,
+                        COUNT(*) as count,
+                        MIN(created_at) as first_memory,
+                        MAX(created_at) as last_memory
+                    FROM memories
+                    WHERE json_extract(metadata, '$.project') IS NOT NULL
+                    GROUP BY json_extract(metadata, '$.project')
+                    ORDER BY count DESC
+                `);
+
+                results.projects = projectsResult.rows.map(row => ({
+                    name: row.project,
+                    memoryCount: row.count,
+                    firstMemory: row.first_memory,
+                    lastMemory: row.last_memory
+                }));
+
+                // Get samples if requested
+                if (includeSamples && results.projects.length > 0) {
+                    for (const project of results.projects) {
+                        const sampleResult = await this.db.db.query(`
+                            SELECT content, created_at
+                            FROM memories
+                            WHERE json_extract(metadata, '$.project') = ?
+                            ORDER BY created_at DESC
+                            LIMIT 2
+                        `, [project.name]);
+                        project.samples = sampleResult.rows;
+                    }
+                }
+            } catch (e) {
+                this.logger.error('Failed to list projects', { error: e.message });
+                results.projects = [];
+            }
+        }
+
+        // Get sessions if requested
+        if (listType === 'sessions' || listType === 'both') {
+            try {
+                const sessionsResult = await this.db.db.query(`
+                    SELECT
+                        json_extract(metadata, '$.session') as session,
+                        COUNT(*) as count,
+                        MIN(created_at) as first_memory,
+                        MAX(created_at) as last_memory
+                    FROM memories
+                    WHERE json_extract(metadata, '$.session') IS NOT NULL
+                    GROUP BY json_extract(metadata, '$.session')
+                    ORDER BY last_memory DESC
+                    LIMIT 50
+                `);
+
+                results.sessions = sessionsResult.rows.map(row => ({
+                    name: row.session,
+                    memoryCount: row.count,
+                    firstMemory: row.first_memory,
+                    lastMemory: row.last_memory
+                }));
+
+                // Get samples if requested
+                if (includeSamples && results.sessions.length > 0) {
+                    for (const session of results.sessions.slice(0, 10)) { // Limit samples to first 10 sessions
+                        const sampleResult = await this.db.db.query(`
+                            SELECT content, created_at
+                            FROM memories
+                            WHERE json_extract(metadata, '$.session') = ?
+                            ORDER BY created_at DESC
+                            LIMIT 2
+                        `, [session.name]);
+                        session.samples = sampleResult.rows;
+                    }
+                }
+            } catch (e) {
+                this.logger.error('Failed to list sessions', { error: e.message });
+                results.sessions = [];
+            }
+        }
+
+        // Format output
+        output = `# Durandal Memory Organization\n\n`;
+
+        if (results.projects) {
+            output += `## Projects (${results.projects.length} total)\n\n`;
+            for (const project of results.projects) {
+                output += `### ${project.name}\n`;
+                output += `- **Memories:** ${project.memoryCount}\n`;
+                output += `- **First:** ${new Date(project.firstMemory).toLocaleDateString()}\n`;
+                output += `- **Latest:** ${new Date(project.lastMemory).toLocaleDateString()}\n`;
+
+                if (project.samples) {
+                    output += `- **Recent samples:**\n`;
+                    for (const sample of project.samples) {
+                        const preview = sample.content.substring(0, 100);
+                        output += `  - "${preview}${sample.content.length > 100 ? '...' : ''}"\n`;
+                    }
+                }
+                output += '\n';
+            }
+        }
+
+        if (results.sessions) {
+            output += `## Sessions (${results.sessions.length} recent)\n\n`;
+            for (const session of results.sessions.slice(0, 20)) { // Show max 20 sessions
+                output += `### ${session.name}\n`;
+                output += `- **Memories:** ${session.memoryCount}\n`;
+                output += `- **Duration:** ${new Date(session.firstMemory).toLocaleTimeString()} - ${new Date(session.lastMemory).toLocaleTimeString()}\n`;
+
+                if (session.samples) {
+                    output += `- **Recent samples:**\n`;
+                    for (const sample of session.samples) {
+                        const preview = sample.content.substring(0, 100);
+                        output += `  - "${preview}${sample.content.length > 100 ? '...' : ''}"\n`;
+                    }
+                }
+                output += '\n';
+            }
+        }
+
+        // Add summary
+        const totalProjects = results.projects?.length || 0;
+        const totalSessions = results.sessions?.length || 0;
+        const totalMemories = results.projects?.reduce((sum, p) => sum + p.memoryCount, 0) || 0;
+
+        output += `## Summary\n`;
+        output += `- **Total Projects:** ${totalProjects}\n`;
+        output += `- **Total Sessions:** ${totalSessions}\n`;
+        output += `- **Total Memories:** ${totalMemories}\n`;
+
+        this.logger.success('Listed projects and sessions');
+
+        return {
+            content: [{
+                type: 'text',
+                text: output
+            }]
+        };
+    }
+
     // Helper methods
     generateMemoryId() {
         return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
@@ -1492,6 +1667,33 @@ SQLite3: ${pkg.dependencies.sqlite3}
             const MCPDatabaseClient = require('./mcp-db-client');
             const tempClient = new MCPDatabaseClient();
             const dbPath = tempClient.dbPath;
+            const dbExists = fs.existsSync(dbPath);
+
+            // Get memory counts from database
+            let memoryCount = 0;
+            let projectCount = 0;
+            let sessionCount = 0;
+
+            if (dbExists) {
+                try {
+                    // Get counts from database
+                    const countResult = await tempClient.query('SELECT COUNT(*) as count FROM memories');
+                    memoryCount = countResult.rows[0]?.count || 0;
+
+                    const projectResult = await tempClient.query(
+                        "SELECT COUNT(DISTINCT json_extract(metadata, '$.project')) as count FROM memories WHERE json_extract(metadata, '$.project') IS NOT NULL"
+                    );
+                    projectCount = projectResult.rows[0]?.count || 0;
+
+                    const sessionResult = await tempClient.query(
+                        "SELECT COUNT(DISTINCT json_extract(metadata, '$.session')) as count FROM memories WHERE json_extract(metadata, '$.session') IS NOT NULL"
+                    );
+                    sessionCount = sessionResult.rows[0]?.count || 0;
+                } catch (e) {
+                    // Ignore errors
+                }
+            }
+
             tempClient.close();  // Clean up
 
             const statusData = {
@@ -1505,8 +1707,11 @@ SQLite3: ${pkg.dependencies.sqlite3}
                 },
                 database: {
                     path: dbPath,
-                    exists: fs.existsSync(dbPath),
-                    size: fs.existsSync(dbPath) ? (fs.statSync(dbPath).size / 1024 / 1024).toFixed(2) : '0.00'
+                    exists: dbExists,
+                    size: dbExists ? (fs.statSync(dbPath).size / 1024 / 1024).toFixed(2) : '0.00',
+                    memoryCount: memoryCount,
+                    projectCount: projectCount,
+                    sessionCount: sessionCount
                 },
                 node: process.version,
                 platform: process.platform,
@@ -1639,6 +1844,14 @@ function displayStatusSummary(data) {
     console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
     console.log(`┃  Database:        ${(data.database.exists ? '[OK] Connected' : '[ERR] Not Found').padEnd(35)}┃`);
     console.log(`┃  Database Size:   ${(data.database.size + ' MB').padEnd(35)}┃`);
+
+    // Show memory counts if available
+    if (data.database.memoryCount !== undefined) {
+        console.log(`┃  Stored Memories: ${(data.database.memoryCount + ' memories').padEnd(35)}┃`);
+        console.log(`┃  Projects:        ${(data.database.projectCount + ' projects').padEnd(35)}┃`);
+        console.log(`┃  Sessions:        ${(data.database.sessionCount + ' sessions').padEnd(35)}┃`);
+    }
+
     console.log('┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫');
     console.log(`┃  Node Version:    ${data.node.padEnd(35)}┃`);
     console.log(`┃  Platform:        ${data.platform.padEnd(35)}┃`);
