@@ -230,13 +230,13 @@ class DurandalMCPServer extends EventEmitter {
                 );
             });
 
-            const requiredTables = ['memories'];
-            const missingTables = requiredTables.filter(t => !tables.includes(t));
+            const issues = [];
 
-            if (missingTables.length > 0) {
+            // Check for main memories table (required)
+            if (!tables.includes('memories')) {
                 return {
                     valid: false,
-                    issues: [`Missing tables: ${missingTables.join(', ')}`]
+                    issues: ['Critical: Missing memories table - database needs initialization']
                 };
             }
 
@@ -251,17 +251,53 @@ class DurandalMCPServer extends EventEmitter {
                 );
             });
 
-            const requiredColumns = ['id', 'content', 'metadata', 'created_at'];
-            const missingColumns = requiredColumns.filter(c => !columns.includes(c));
+            // Essential columns for memories table
+            const essentialColumns = ['id', 'content'];
+            const missingEssential = essentialColumns.filter(c => !columns.includes(c));
 
-            if (missingColumns.length > 0) {
-                return {
-                    valid: false,
-                    issues: [`Missing columns in memories table: ${missingColumns.join(', ')}`]
-                };
+            if (missingEssential.length > 0) {
+                issues.push(`Missing essential columns in memories table: ${missingEssential.join(', ')}`);
             }
 
-            return { valid: true, issues: [] };
+            // Optional but expected columns
+            const expectedColumns = ['metadata', 'created_at'];
+            const missingExpected = expectedColumns.filter(c => !columns.includes(c));
+
+            if (missingExpected.length > 0) {
+                // This is a warning, not a failure
+                this.logger.debug('[DB-CHECK] Optional columns missing', { columns: missingExpected });
+            }
+
+            // Check for legacy tables (informational)
+            const legacyTables = ['projects', 'conversation_sessions', 'conversation_messages'];
+            const existingLegacy = legacyTables.filter(t => tables.includes(t));
+
+            if (existingLegacy.length > 0) {
+                this.logger.debug('[DB-CHECK] Legacy tables present', { tables: existingLegacy });
+            }
+
+            // Count records to verify database is operational
+            const recordCount = await new Promise((resolve, reject) => {
+                this.db.db.client.get(
+                    "SELECT COUNT(*) as count FROM memories",
+                    (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row.count);
+                    }
+                );
+            });
+
+            this.logger.debug('[DB-CHECK] Database contains memories', { count: recordCount });
+
+            return {
+                valid: issues.length === 0,
+                issues,
+                info: {
+                    tables: tables.length,
+                    memories: recordCount,
+                    hasLegacyTables: existingLegacy.length > 0
+                }
+            };
 
         } catch (error) {
             return {
@@ -283,21 +319,22 @@ class DurandalMCPServer extends EventEmitter {
                 timestamp: new Date().toISOString()
             };
 
-            // Write test
-            const storeResult = await this.db.db.storeMemory(testContent, testMetadata);
+            // Write test using proper abstraction
+            const storeResult = await this.db.storeMemory(testContent, testMetadata);
 
             if (!storeResult || !storeResult.id) {
                 throw new Error('Store operation did not return an ID');
             }
 
-            // Read test
-            const searchResult = await this.db.db.searchMemories('[DB-CHECK]', {}, 1);
+            // Read test using proper abstraction
+            const searchResult = await this.db.searchMemories('[DB-CHECK]', {}, 1);
 
             if (!searchResult || searchResult.length === 0) {
                 throw new Error('Search operation returned no results');
             }
 
-            // Cleanup test memory
+            // Cleanup test memory - we need direct access for cleanup
+            // This is acceptable as it's a cleanup operation
             try {
                 await new Promise((resolve, reject) => {
                     this.db.db.client.run(

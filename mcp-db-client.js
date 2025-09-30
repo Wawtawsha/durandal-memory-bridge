@@ -17,24 +17,58 @@ class MCPDatabaseClient {
     }
 
     /**
-     * Resolves the database path in priority order:
+     * Resolves the database path with migration support:
      * 1. DATABASE_PATH environment variable (explicit override)
-     * 2. ~/.durandal-mcp/durandal-mcp-memory.db (default persistent location)
+     * 2. Search for existing databases in common locations
+     * 3. ~/.durandal-mcp/durandal-mcp-memory.db (new default)
      */
     resolveDatabasePath() {
         const path = require('path');
         const fs = require('fs');
 
-        // Check for explicit override
+        // Priority 1: Check for explicit override
         if (process.env.DATABASE_PATH) {
             console.log(`[DB] Using DATABASE_PATH from environment: ${process.env.DATABASE_PATH}`);
             return process.env.DATABASE_PATH;
         }
 
-        // Default to user home directory
         const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
         const durandalDir = path.join(homeDir, '.durandal-mcp');
-        const dbPath = path.join(durandalDir, 'durandal-mcp-memory.db');
+
+        // Priority 2: Check for existing databases in order of preference
+        const possibleLocations = [
+            // New default location
+            path.join(durandalDir, 'durandal-mcp-memory.db'),
+            // Legacy location in current directory
+            './durandal-mcp-memory.db',
+            // Possible global npm location
+            path.join(__dirname, 'durandal-mcp-memory.db'),
+            // Alternative current directory names
+            './durandal-memory.db',
+            './memories.db'
+        ];
+
+        // Search for existing database
+        for (const location of possibleLocations) {
+            if (fs.existsSync(location)) {
+                const stats = fs.statSync(location);
+                // Make sure it's actually a file and has some data
+                if (stats.isFile() && stats.size > 0) {
+                    console.log(`[DB] Found existing database at: ${location}`);
+
+                    // If found in legacy location, notify about migration
+                    if (location !== possibleLocations[0]) {
+                        console.log(`[DB] NOTE: Consider moving database to ${possibleLocations[0]} for consistency`);
+                        console.log(`[DB] You can move it with: mv "${location}" "${possibleLocations[0]}"`);
+                    }
+
+                    return location;
+                }
+            }
+        }
+
+        // Priority 3: No existing database found, use new default location
+        console.log(`[DB] No existing database found, creating new at: ${path.join(durandalDir, 'durandal-mcp-memory.db')}`);
 
         // Ensure directory exists
         if (!fs.existsSync(durandalDir)) {
@@ -42,7 +76,7 @@ class MCPDatabaseClient {
             console.log(`[DB] Created Durandal directory: ${durandalDir}`);
         }
 
-        return dbPath;
+        return path.join(durandalDir, 'durandal-mcp-memory.db');
     }
 
     initializeSQLite() {

@@ -21,6 +21,22 @@ class DatabaseAdapter {
     }
 
     /**
+     * Store a memory directly (for MCP server)
+     * Delegates to MCPDatabaseClient's storeMemory method
+     */
+    async storeMemory(content, metadata = {}) {
+        return await this.db.storeMemory(content, metadata);
+    }
+
+    /**
+     * Search memories directly (for MCP server)
+     * Delegates to MCPDatabaseClient's searchMemories method
+     */
+    async searchMemories(query, options = {}, limit = 10) {
+        return await this.db.searchMemories(query, options, limit);
+    }
+
+    /**
      * Get project by name with caching
      */
     async getProjectByName(projectName) {

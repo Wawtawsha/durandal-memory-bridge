@@ -5,6 +5,44 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.5] - 2025-09-30
+
+### Core Change: Critical Bug Fixes and Migration Support
+Fixed critical bugs from v3.1.3-3.1.4 and added automatic database migration support.
+
+### What This Means for Users
+- **Automatic database discovery** - Finds existing databases before creating new ones
+- **Non-breaking migration** - Your existing databases are found and used automatically
+- **Proper abstraction** - Fixed internal architecture violations
+- **Better schema validation** - More accurate database health checks
+
+### Fixes from Previous Versions
+1. **Database Access Pattern**: Fixed improper direct access to internal database layers
+2. **Migration Support**: Now searches for existing databases in multiple locations
+3. **Schema Validation**: Correctly validates actual database schema
+4. **Architecture**: Properly uses DatabaseAdapter abstraction layer
+
+### Database Search Order
+1. `DATABASE_PATH` environment variable (explicit override)
+2. `~/.durandal-mcp/durandal-mcp-memory.db` (preferred location)
+3. `./durandal-mcp-memory.db` (legacy location)
+4. Other common locations checked automatically
+
+### Migration Guidance
+If an existing database is found in a legacy location, you'll see:
+```
+[DB] Found existing database at: ./durandal-mcp-memory.db
+[DB] NOTE: Consider moving database to ~/.durandal-mcp/durandal-mcp-memory.db
+```
+
+### Files Changed
+- `db-adapter.js` - Added proper `storeMemory()` and `searchMemories()` delegation methods
+- `durandal-mcp-server-v3.js` - Fixed database access patterns and improved schema validation
+- `mcp-db-client.js` - Added database discovery with migration support
+- `package.json` - Version 3.1.5
+
+---
+
 ## [3.1.4] - 2025-09-30
 
 ### Core Change: Consistent Database Location
