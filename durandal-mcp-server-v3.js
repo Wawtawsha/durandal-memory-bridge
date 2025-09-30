@@ -1391,6 +1391,7 @@ Options:
   --version, -v     Show version information
   --test            Run built-in test suite
   --status          Show system status and statistics
+  --discover        Find all Durandal databases on system
   --configure       Interactive log level configuration
   --update          Check for and install updates
   --debug           Enable debug logging
@@ -1467,6 +1468,19 @@ SQLite3: ${pkg.dependencies.sqlite3}
             };
 
             displayStatusSummary(statusData);
+            process.exit(0);
+        }
+
+        if (args.includes('--discover')) {
+            console.log('Discovering all Durandal databases on system...\n');
+            try {
+                const DatabaseDiscovery = require('./db-discovery');
+                const discovery = new DatabaseDiscovery();
+                await discovery.discover();
+            } catch (error) {
+                console.error('Discovery failed:', error.message);
+                console.error('\nTry running: node db-discovery.js');
+            }
             process.exit(0);
         }
 

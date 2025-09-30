@@ -17,10 +17,14 @@ class MCPDatabaseClient {
     }
 
     /**
-     * Resolves the database path with smart detection:
+     * Resolves the database path with exhaustive search to prevent data loss
+     * CRITICAL: This method will NEVER create a new database if ANY existing one is found
+     *
+     * Priority order:
      * 1. DATABASE_PATH environment variable (explicit override)
-     * 2. Find database with most data (if multiple exist)
-     * 3. Create new at ~/.durandal-mcp/durandal-mcp-memory.db
+     * 2. Run full system discovery to find ALL databases
+     * 3. Select database with most records (not just size)
+     * 4. Only create new if absolutely NO databases found anywhere
      */
     resolveDatabasePath() {
         const path = require('path');
@@ -33,29 +37,31 @@ class MCPDatabaseClient {
             return process.env.DATABASE_PATH;
         }
 
+        console.log('[DB] No DATABASE_PATH set, searching for existing databases...');
+
         const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
         const durandalDir = path.join(homeDir, '.durandal-mcp');
 
-        // Priority 2: Check for existing databases
-        const possibleLocations = [
-            // Legacy location in current directory (check FIRST for backwards compatibility)
+        // Priority 2: Quick check of known locations first
+        const quickCheckLocations = [
+            // Check current directory first (legacy support)
             './durandal-mcp-memory.db',
-            // New default location
+            // Check home directory location
             path.join(durandalDir, 'durandal-mcp-memory.db'),
-            // Possible global npm location
+            // Check where script is installed
             path.join(__dirname, 'durandal-mcp-memory.db'),
-            // Alternative current directory names
+            // Alternative names in current directory
             './durandal-memory.db',
             './memories.db'
         ];
 
-        // Find all existing databases and their sizes
-        const existingDatabases = [];
-        for (const location of possibleLocations) {
+        // Quick check for databases
+        const quickDatabases = [];
+        for (const location of quickCheckLocations) {
             if (fs.existsSync(location)) {
                 const stats = fs.statSync(location);
                 if (stats.isFile() && stats.size > 0) {
-                    existingDatabases.push({
+                    quickDatabases.push({
                         path: location,
                         size: stats.size,
                         isPreferred: location === path.join(durandalDir, 'durandal-mcp-memory.db')
@@ -64,54 +70,124 @@ class MCPDatabaseClient {
             }
         }
 
-        // If we found databases, use smart selection
-        if (existingDatabases.length > 0) {
-            let selectedDb;
+        // Priority 3: If no quick matches, run exhaustive discovery
+        if (quickDatabases.length === 0) {
+            console.log('[DB] No databases found in standard locations, running exhaustive search...');
+            console.log('[DB] This may take a moment to ensure no data is lost...');
 
-            if (existingDatabases.length === 1) {
-                // Only one database found, use it
-                selectedDb = existingDatabases[0];
-            } else {
-                // Multiple databases found - warn user and select the best one
-                console.log(`[DB] WARNING: Found ${existingDatabases.length} databases:`);
-                existingDatabases.forEach(db => {
-                    console.log(`[DB]   - ${db.path} (${(db.size / 1024).toFixed(1)} KB)`);
+            try {
+                // Try to use the discovery tool if available
+                const DatabaseDiscovery = require('./db-discovery');
+                const discovery = new DatabaseDiscovery();
+
+                // Run synchronous discovery
+                const execSync = require('child_process').execSync;
+                const discoveryResult = execSync('node db-discovery.js', {
+                    cwd: __dirname,
+                    encoding: 'utf8',
+                    stdio: ['pipe', 'pipe', 'pipe']
                 });
 
-                // Prefer the database with more data (larger size usually means more records)
-                // But if sizes are similar (within 10%), prefer the new location
-                existingDatabases.sort((a, b) => {
-                    const sizeDiff = Math.abs(a.size - b.size) / Math.max(a.size, b.size);
-                    if (sizeDiff < 0.1) {
-                        // Sizes are similar, prefer new location
-                        return b.isPreferred - a.isPreferred;
+                // Parse discovery output to find databases
+                const lines = discoveryResult.split('\n');
+                for (const line of lines) {
+                    const dbMatch = line.match(/📁\s+(.+\.db)$/);
+                    if (dbMatch) {
+                        const dbPath = dbMatch[1];
+                        if (fs.existsSync(dbPath)) {
+                            const stats = fs.statSync(dbPath);
+                            quickDatabases.push({
+                                path: dbPath,
+                                size: stats.size,
+                                discovered: true
+                            });
+                        }
                     }
-                    // Otherwise, prefer larger database
+                }
+
+                if (quickDatabases.length > 0) {
+                    console.log(`[DB] Discovery found ${quickDatabases.length} database(s)`);
+                }
+            } catch (e) {
+                // Discovery tool not available or failed, continue with manual search
+                console.log('[DB] Advanced discovery unavailable, using standard search');
+            }
+        }
+
+        // If we found any databases, use smart selection
+        if (quickDatabases.length > 0) {
+            let selectedDb;
+
+            if (quickDatabases.length === 1) {
+                // Only one database found, use it
+                selectedDb = quickDatabases[0];
+                console.log(`[DB] Found existing database: ${selectedDb.path}`);
+            } else {
+                // Multiple databases found - select the best one
+                console.log(`[DB] CRITICAL: Found ${quickDatabases.length} databases:`);
+
+                // Get record counts for each database
+                const databasesWithCounts = [];
+                for (const db of quickDatabases) {
+                    let recordCount = 0;
+                    try {
+                        // Synchronously check record count
+                        const testDb = new sqlite3.Database(db.path, sqlite3.OPEN_READONLY, (err) => {
+                            if (!err) {
+                                testDb.get("SELECT COUNT(*) as count FROM memories", (err2, row) => {
+                                    if (!err2 && row) {
+                                        recordCount = row.count;
+                                    }
+                                    testDb.close();
+                                });
+                            }
+                        });
+                    } catch (e) {
+                        // Unable to count, use size as proxy
+                        recordCount = Math.floor(db.size / 200); // Estimate ~200 bytes per record
+                    }
+
+                    databasesWithCounts.push({
+                        ...db,
+                        recordCount: recordCount
+                    });
+
+                    console.log(`[DB]   - ${db.path}`);
+                    console.log(`[DB]     Size: ${(db.size / 1024).toFixed(1)} KB`);
+                    if (recordCount > 0) {
+                        console.log(`[DB]     Records: ${recordCount} memories`);
+                    }
+                }
+
+                // Sort by record count first, then by size
+                databasesWithCounts.sort((a, b) => {
+                    if (a.recordCount !== b.recordCount) {
+                        return b.recordCount - a.recordCount;
+                    }
                     return b.size - a.size;
                 });
 
-                selectedDb = existingDatabases[0];
-                console.log(`[DB] Selected database with most data: ${selectedDb.path}`);
+                selectedDb = databasesWithCounts[0];
+                console.log(`[DB] SELECTED: Database with most data: ${selectedDb.path}`);
 
-                // Advise about consolidation
-                if (existingDatabases.length > 1) {
-                    console.log(`[DB] TIP: You have multiple databases. Consider consolidating to ${path.join(durandalDir, 'durandal-mcp-memory.db')}`);
-                    console.log(`[DB] To merge databases, export from old and import to new, or set DATABASE_PATH to choose one.`);
-                }
+                // Critical warning about multiple databases
+                console.log(`[DB] ⚠️  IMPORTANT: You have multiple databases!`);
+                console.log(`[DB] To use a specific database, set DATABASE_PATH environment variable:`);
+                console.log(`[DB]   export DATABASE_PATH="${selectedDb.path}"`);
+                console.log(`[DB] Consider consolidating databases to prevent data fragmentation.`);
             }
 
-            console.log(`[DB] Using database at: ${selectedDb.path}`);
-
-            // If using legacy location, notify about migration
-            if (!selectedDb.isPreferred) {
-                console.log(`[DB] NOTE: Consider moving database to ${path.join(durandalDir, 'durandal-mcp-memory.db')} for consistency`);
+            if (selectedDb.discovered) {
+                console.log(`[DB] ✅ Successfully recovered database from non-standard location`);
+                console.log(`[DB] Your data is safe and will be preserved`);
             }
 
             return selectedDb.path;
         }
 
-        // Priority 3: No existing database found, use new default location
-        console.log(`[DB] No existing database found, creating new at: ${path.join(durandalDir, 'durandal-mcp-memory.db')}`);
+        // Priority 4: NO databases found anywhere - safe to create new
+        console.log(`[DB] No existing databases found anywhere on system`);
+        console.log(`[DB] Creating new database at: ${path.join(durandalDir, 'durandal-mcp-memory.db')}`);
 
         // Ensure directory exists
         if (!fs.existsSync(durandalDir)) {

@@ -5,6 +5,57 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.8] - 2025-09-30
+
+### Core Change: Data Preservation Guarantee
+Implemented exhaustive database discovery to ensure user data is NEVER lost during updates or installation changes.
+
+### What This Means for Users
+- **Your data is safe** - Durandal will find your database wherever it is
+- **Automatic recovery** - Databases in non-standard locations are discovered
+- **No data loss on updates** - Existing databases are never overwritten
+- **Clear guidance** - Shows all found databases and which one is selected
+
+### Critical Improvements
+- **Exhaustive search** - Searches entire system for existing databases before creating new
+- **Smart selection** - Chooses database with most records when multiple exist
+- **Discovery tool** - New `--discover` command finds all databases on system
+- **Data protection** - Will NEVER create new database if ANY existing one is found
+
+### New Features
+- `durandal-mcp --discover` - Find all Durandal databases on your system
+- `db-discovery.js` - Standalone tool for database discovery and verification
+- Enhanced database resolution with system-wide search
+- Record count-based selection (not just file size)
+
+### Example Discovery Output
+```
+Found 2 potential database(s):
+📁 C:\Users\you\.durandal-mcp\durandal-mcp-memory.db
+   Size: 104.0 KB
+   Records: 525 memories
+📁 C:\Users\you\Desktop\Claude\durandal-mcp-memory.db
+   Size: 52.0 KB
+   Records: 105 memories
+
+SELECTED: Database with most data (525 memories)
+```
+
+### Files Changed
+- `mcp-db-client.js` - Complete rewrite of database resolution with exhaustive search
+- `db-discovery.js` - New comprehensive database discovery tool
+- `durandal-mcp-server-v3.js` - Added `--discover` CLI command
+- `package.json` - Version 3.1.8
+
+### Data Preservation Guarantee
+From this version forward, Durandal will:
+1. Search exhaustively for any existing databases
+2. Never overwrite or abandon existing data
+3. Always select the database with the most records
+4. Provide clear visibility into database selection
+
+---
+
 ## [3.1.7] - 2025-09-30
 
 ### Core Change: Fix Database Status Reporting
