@@ -611,6 +611,14 @@ class DurandalMCPServer extends EventEmitter {
             }
         }
 
+        // Add project and session to metadata if not specified
+        if (!metadata.project) {
+            metadata.project = 'default';
+        }
+        if (!metadata.session) {
+            metadata.session = new Date().toISOString().split('T')[0]; // Use date as default session
+        }
+
         // Generate memory ID
         const memoryId = this.generateMemoryId();
 
@@ -650,9 +658,13 @@ class DurandalMCPServer extends EventEmitter {
                 type: 'text',
                 text: `[OK] Memory stored successfully\n\n` +
                       `**ID:** ${memoryId}\n` +
+                      `**Project:** ${enrichedMetadata.project || 'default'}\n` +
+                      `**Session:** ${enrichedMetadata.session || 'current'}\n` +
                       `**Importance:** ${enrichedMetadata.importance || 'Not set'}\n` +
                       `**Categories:** ${enrichedMetadata.categories?.join(', ') || 'None'}\n` +
-                      `**Cache Priority:** ${enrichedMetadata.ramr?.cache_priority || 'Normal'}`
+                      `**Cache Priority:** ${enrichedMetadata.ramr?.cache_priority || 'Normal'}\n\n` +
+                      `💡 **Tip:** You can specify project and session in metadata to organize memories:\n` +
+                      `   metadata: { project: "my-app", session: "feature-x" }`
             }]
         };
     }
@@ -857,6 +869,32 @@ class DurandalMCPServer extends EventEmitter {
         const dbExists = fs.existsSync(dbPath);
         const dbSize = dbExists ? (fs.statSync(dbPath).size / 1024 / 1024).toFixed(2) : '0.00';
 
+        // Get memory counts from database
+        let dbMemoryCount = 0;
+        let dbProjectCount = 0;
+        let dbSessionCount = 0;
+
+        if (dbExists) {
+            try {
+                // Get total memory count
+                const countResult = await this.db.db.query('SELECT COUNT(*) as count FROM memories');
+                dbMemoryCount = countResult.rows[0]?.count || 0;
+
+                // Get unique projects and sessions
+                const projectResult = await this.db.db.query(
+                    "SELECT COUNT(DISTINCT json_extract(metadata, '$.project')) as count FROM memories WHERE json_extract(metadata, '$.project') IS NOT NULL"
+                );
+                dbProjectCount = projectResult.rows[0]?.count || 0;
+
+                const sessionResult = await this.db.db.query(
+                    "SELECT COUNT(DISTINCT json_extract(metadata, '$.session')) as count FROM memories WHERE json_extract(metadata, '$.session') IS NOT NULL"
+                );
+                dbSessionCount = sessionResult.rows[0]?.count || 0;
+            } catch (e) {
+                this.logger.debug('Could not get memory counts:', e.message);
+            }
+        }
+
         const memUsage = process.memoryUsage();
         const uptimeSeconds = process.uptime();
 
@@ -871,7 +909,10 @@ class DurandalMCPServer extends EventEmitter {
             database: {
                 path: dbPath,
                 connected: dbExists,
-                size: dbSize
+                size: dbSize,
+                memoryCount: dbMemoryCount,
+                projectCount: dbProjectCount,
+                sessionCount: dbSessionCount
             },
             cache: {
                 size: this.cache.size,
@@ -900,7 +941,11 @@ class DurandalMCPServer extends EventEmitter {
         output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
         output += `┃  Database:        ${(statusData.database.connected ? '[OK] Connected' : '[ERR] Not Found').padEnd(35)}┃\n`;
         output += `┃  Database Size:   ${(statusData.database.size + ' MB').padEnd(35)}┃\n`;
-        output += `┃  Cache Size:      ${(statusData.cache.size + ' / ' + statusData.cache.maxSize).padEnd(35)}┃\n`;
+        output += `┃  Stored Memories: ${(statusData.database.memoryCount + ' memories').padEnd(35)}┃\n`;
+        output += `┃  Projects:        ${(statusData.database.projectCount + ' projects').padEnd(35)}┃\n`;
+        output += `┃  Sessions:        ${(statusData.database.sessionCount + ' sessions').padEnd(35)}┃\n`;
+        output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
+        output += `┃  Cache Memories:  ${(statusData.cache.size + ' / ' + statusData.cache.maxSize + ' cached').padEnd(35)}┃\n`;
         output += '┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n';
         output += `┃  Console Level:   ${statusData.logging.consoleLevel.padEnd(35)}┃\n`;
         output += `┃  File Level:      ${statusData.logging.fileLevel.padEnd(35)}┃\n`;
@@ -1392,6 +1437,7 @@ Options:
   --test            Run built-in test suite
   --status          Show system status and statistics
   --discover        Find all Durandal databases on system
+  --migrate         Merge all databases into universal database
   --configure       Interactive log level configuration
   --update          Check for and install updates
   --debug           Enable debug logging
@@ -1480,6 +1526,19 @@ SQLite3: ${pkg.dependencies.sqlite3}
             } catch (error) {
                 console.error('Discovery failed:', error.message);
                 console.error('\nTry running: node db-discovery.js');
+            }
+            process.exit(0);
+        }
+
+        if (args.includes('--migrate')) {
+            console.log('Starting database migration...\n');
+            try {
+                const DatabaseMigrator = require('./db-migrate');
+                const migrator = new DatabaseMigrator();
+                await migrator.migrate();
+            } catch (error) {
+                console.error('Migration failed:', error.message);
+                console.error('\nTry running: node db-migrate.js');
             }
             process.exit(0);
         }

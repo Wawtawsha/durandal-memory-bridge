@@ -5,6 +5,74 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0] - 2025-09-30
+
+### Core Change: Database Migration & Enhanced Memory Management
+Major update with database migration tool, enhanced status display, and improved memory organization with project/session metadata.
+
+### What This Means for Users
+- **Merge all databases** - New migration tool consolidates multiple databases into one
+- **Better memory organization** - Memories now track project and session automatically
+- **Rich status display** - See exactly how many memories, projects, and sessions you have
+- **No more lost data** - Migration tool preserves all memories from all databases
+
+### New Features
+1. **Database Migration Tool** (`--migrate`)
+   - Finds all databases on your system
+   - Merges them into a single universal database
+   - Preserves all memories with deduplication
+   - Shows migration statistics and progress
+
+2. **Enhanced Status Display**
+   - Shows total memory count in database
+   - Displays number of projects
+   - Shows number of sessions
+   - Cache memory count displayed separately
+
+3. **Project/Session Metadata**
+   - Memories automatically tagged with project and session
+   - Default project: "default"
+   - Default session: current date (YYYY-MM-DD)
+   - Can override with metadata: `{ project: "my-app", session: "feature-x" }`
+
+### CLI Commands
+- `durandal-mcp --migrate` - Merge all databases into one universal database
+- `durandal-mcp --discover` - Find all databases (enhanced from v3.1.8)
+- `durandal-mcp --status` - View enhanced status with memory counts
+
+### Example Status Display
+```
+┃  Database:        [OK] Connected                     ┃
+┃  Database Size:   0.10 MB                           ┃
+┃  Stored Memories: 525 memories                      ┃
+┃  Projects:        12 projects                       ┃
+┃  Sessions:        47 sessions                       ┃
+┃  Cache Memories:  15 / 1000 cached                  ┃
+```
+
+### Migration Example
+```bash
+$ durandal-mcp --migrate
+
+Found 2 database(s) to migrate:
+  - C:\Users\you\Desktop\durandal-mcp-memory.db (105 memories)
+  - C:\Users\you\OldProject\memories.db (420 memories)
+
+Migration Complete!
+Total memories processed: 525
+Successfully migrated: 520
+Duplicates skipped: 5
+
+✅ Universal database now contains: 520 memories
+```
+
+### Files Changed
+- `db-migrate.js` - New database migration tool
+- `durandal-mcp-server-v3.js` - Enhanced status display, project/session support, --migrate command
+- `package.json` - Version 3.2.0
+
+---
+
 ## [3.1.8] - 2025-09-30
 
 ### Core Change: Data Preservation Guarantee
