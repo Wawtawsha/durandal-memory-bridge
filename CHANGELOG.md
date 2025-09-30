@@ -5,6 +5,34 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.4] - 2025-09-30
+
+### Core Change: Consistent Database Location
+Changed database to always use `~/.durandal-mcp/durandal-mcp-memory.db` instead of creating it in the current working directory.
+
+### What This Means for Users
+- **Database always in the same location** regardless of where you run `durandal-mcp`
+- **Your memories persist** across different projects and directories
+- **More predictable** - no more wondering "where is my database?"
+- **Cleaner projects** - no database files scattered in random directories
+
+### Breaking Change
+Previously, the database was created at `./durandal-mcp-memory.db` (current directory). Now it defaults to `~/.durandal-mcp/durandal-mcp-memory.db` (user home).
+
+**Migration**: If you have an existing database in your project directory, you can:
+1. Move it: `mv ./durandal-mcp-memory.db ~/.durandal-mcp/durandal-mcp-memory.db`
+2. Or set: `export DATABASE_PATH=./durandal-mcp-memory.db` to keep using it
+
+### Database Path Priority
+1. `DATABASE_PATH` environment variable (explicit override)
+2. `~/.durandal-mcp/durandal-mcp-memory.db` (default)
+
+### Files Changed
+- `mcp-db-client.js` - Added `resolveDatabasePath()` method with consistent location logic
+- `package.json` - Version 3.1.4
+
+---
+
 ## [3.1.3] - 2025-09-30
 
 ### Core Change: Database Startup Checks

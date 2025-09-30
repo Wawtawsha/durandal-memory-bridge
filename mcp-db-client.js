@@ -9,9 +9,40 @@ class MCPDatabaseClient {
     constructor() {
         this.client = null;
         this.initialized = false;
-        this.dbPath = process.env.DATABASE_PATH || './durandal-mcp-memory.db';
+
+        // Determine database path with priority order
+        this.dbPath = this.resolveDatabasePath();
 
         this.initializeSQLite();
+    }
+
+    /**
+     * Resolves the database path in priority order:
+     * 1. DATABASE_PATH environment variable (explicit override)
+     * 2. ~/.durandal-mcp/durandal-mcp-memory.db (default persistent location)
+     */
+    resolveDatabasePath() {
+        const path = require('path');
+        const fs = require('fs');
+
+        // Check for explicit override
+        if (process.env.DATABASE_PATH) {
+            console.log(`[DB] Using DATABASE_PATH from environment: ${process.env.DATABASE_PATH}`);
+            return process.env.DATABASE_PATH;
+        }
+
+        // Default to user home directory
+        const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
+        const durandalDir = path.join(homeDir, '.durandal-mcp');
+        const dbPath = path.join(durandalDir, 'durandal-mcp-memory.db');
+
+        // Ensure directory exists
+        if (!fs.existsSync(durandalDir)) {
+            fs.mkdirSync(durandalDir, { recursive: true });
+            console.log(`[DB] Created Durandal directory: ${durandalDir}`);
+        }
+
+        return dbPath;
     }
 
     initializeSQLite() {
