@@ -5,9 +5,28 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.2] - 2025-09-30
+
+### Core Change: Project Assignment Tool
+Added standalone tool to retroactively assign projects to orphaned memories.
+
+### New Features
+- **`assign-projects.js` tool** - Assign projects to memories without them
+  - Interactive mode for guided assignment
+  - Batch mode for bulk operations
+  - Filter by date range or content
+  - Dry-run mode for preview
+  - Preserves all existing metadata
+
+### Files Changed
+- `assign-projects.js` - New project assignment tool
+- `package.json` - Added assign-projects.js to files list
+
+---
+
 ## [3.2.1] - 2025-09-30
 
-### Core Change: Project/Session Enumeration & Assignment Tools
+### Core Change: Project/Session Enumeration Tool
 Added new MCP tool to list all projects/sessions and a standalone tool to assign projects to orphaned memories.
 
 ### New Features
