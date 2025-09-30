@@ -5,6 +5,39 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.6] - 2025-09-30
+
+### Core Change: Smart Database Resolution
+Fixed critical issue where wrong database was selected when multiple databases exist.
+
+### What This Means for Users
+- **Automatically uses database with your data** - No more losing memories
+- **Smart detection** - Selects database with most content when multiple exist
+- **Clear warnings** - Shows all found databases and which one is selected
+- **Backwards compatible** - Checks current directory FIRST for existing users
+
+### Critical Bug Fixed
+When users had databases in both `./` and `~/.durandal-mcp/`, the system was using the wrong (often empty) database. Now it:
+1. Finds all existing databases
+2. Shows their sizes
+3. Uses the one with most data
+4. Warns about duplicates
+
+### Example Output with Multiple Databases
+```
+[DB] WARNING: Found 2 databases:
+[DB]   - ./durandal-mcp-memory.db (425.3 KB)
+[DB]   - /Users/you/.durandal-mcp/durandal-mcp-memory.db (0.5 KB)
+[DB] Selected database with most data: ./durandal-mcp-memory.db
+[DB] TIP: You have multiple databases. Consider consolidating...
+```
+
+### Files Changed
+- `mcp-db-client.js` - Complete rewrite of `resolveDatabasePath()` with smart selection
+- `package.json` - Version 3.1.6
+
+---
+
 ## [3.1.5] - 2025-09-30
 
 ### Core Change: Critical Bug Fixes and Migration Support

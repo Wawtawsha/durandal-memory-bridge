@@ -17,14 +17,15 @@ class MCPDatabaseClient {
     }
 
     /**
-     * Resolves the database path with migration support:
+     * Resolves the database path with smart detection:
      * 1. DATABASE_PATH environment variable (explicit override)
-     * 2. Search for existing databases in common locations
-     * 3. ~/.durandal-mcp/durandal-mcp-memory.db (new default)
+     * 2. Find database with most data (if multiple exist)
+     * 3. Create new at ~/.durandal-mcp/durandal-mcp-memory.db
      */
     resolveDatabasePath() {
         const path = require('path');
         const fs = require('fs');
+        const sqlite3 = require('sqlite3').verbose();
 
         // Priority 1: Check for explicit override
         if (process.env.DATABASE_PATH) {
@@ -35,12 +36,12 @@ class MCPDatabaseClient {
         const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
         const durandalDir = path.join(homeDir, '.durandal-mcp');
 
-        // Priority 2: Check for existing databases in order of preference
+        // Priority 2: Check for existing databases
         const possibleLocations = [
+            // Legacy location in current directory (check FIRST for backwards compatibility)
+            './durandal-mcp-memory.db',
             // New default location
             path.join(durandalDir, 'durandal-mcp-memory.db'),
-            // Legacy location in current directory
-            './durandal-mcp-memory.db',
             // Possible global npm location
             path.join(__dirname, 'durandal-mcp-memory.db'),
             // Alternative current directory names
@@ -48,23 +49,65 @@ class MCPDatabaseClient {
             './memories.db'
         ];
 
-        // Search for existing database
+        // Find all existing databases and their sizes
+        const existingDatabases = [];
         for (const location of possibleLocations) {
             if (fs.existsSync(location)) {
                 const stats = fs.statSync(location);
-                // Make sure it's actually a file and has some data
                 if (stats.isFile() && stats.size > 0) {
-                    console.log(`[DB] Found existing database at: ${location}`);
-
-                    // If found in legacy location, notify about migration
-                    if (location !== possibleLocations[0]) {
-                        console.log(`[DB] NOTE: Consider moving database to ${possibleLocations[0]} for consistency`);
-                        console.log(`[DB] You can move it with: mv "${location}" "${possibleLocations[0]}"`);
-                    }
-
-                    return location;
+                    existingDatabases.push({
+                        path: location,
+                        size: stats.size,
+                        isPreferred: location === path.join(durandalDir, 'durandal-mcp-memory.db')
+                    });
                 }
             }
+        }
+
+        // If we found databases, use smart selection
+        if (existingDatabases.length > 0) {
+            let selectedDb;
+
+            if (existingDatabases.length === 1) {
+                // Only one database found, use it
+                selectedDb = existingDatabases[0];
+            } else {
+                // Multiple databases found - warn user and select the best one
+                console.log(`[DB] WARNING: Found ${existingDatabases.length} databases:`);
+                existingDatabases.forEach(db => {
+                    console.log(`[DB]   - ${db.path} (${(db.size / 1024).toFixed(1)} KB)`);
+                });
+
+                // Prefer the database with more data (larger size usually means more records)
+                // But if sizes are similar (within 10%), prefer the new location
+                existingDatabases.sort((a, b) => {
+                    const sizeDiff = Math.abs(a.size - b.size) / Math.max(a.size, b.size);
+                    if (sizeDiff < 0.1) {
+                        // Sizes are similar, prefer new location
+                        return b.isPreferred - a.isPreferred;
+                    }
+                    // Otherwise, prefer larger database
+                    return b.size - a.size;
+                });
+
+                selectedDb = existingDatabases[0];
+                console.log(`[DB] Selected database with most data: ${selectedDb.path}`);
+
+                // Advise about consolidation
+                if (existingDatabases.length > 1) {
+                    console.log(`[DB] TIP: You have multiple databases. Consider consolidating to ${path.join(durandalDir, 'durandal-mcp-memory.db')}`);
+                    console.log(`[DB] To merge databases, export from old and import to new, or set DATABASE_PATH to choose one.`);
+                }
+            }
+
+            console.log(`[DB] Using database at: ${selectedDb.path}`);
+
+            // If using legacy location, notify about migration
+            if (!selectedDb.isPreferred) {
+                console.log(`[DB] NOTE: Consider moving database to ${path.join(durandalDir, 'durandal-mcp-memory.db')} for consistency`);
+            }
+
+            return selectedDb.path;
         }
 
         // Priority 3: No existing database found, use new default location
