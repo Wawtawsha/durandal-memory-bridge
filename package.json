@@ -12,6 +12,7 @@
     "mcp-db-client.js",
     "db-discovery.js",
     "db-migrate.js",
+    "assign-projects.js",
     "logger.js",
     "errors.js",
     "test-runner.js",

@@ -7,39 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.2.1] - 2025-09-30
 
-### Core Change: Project/Session Enumeration Tool
-Added new MCP tool to list all projects and sessions with their memory counts and samples.
+### Core Change: Project/Session Enumeration & Assignment Tools
+Added new MCP tool to list all projects/sessions and a standalone tool to assign projects to orphaned memories.
 
 ### New Features
-- **`list_projects_sessions` MCP tool** - Enumerate all projects and sessions in database
-  - List projects with memory counts
-  - List sessions with memory counts
-  - Show first and last memory dates
-  - Optional sample memories from each project/session
-  - Flexible filtering: projects only, sessions only, or both
+1. **`list_projects_sessions` MCP tool** - Enumerate all projects and sessions in database
+   - List projects with memory counts
+   - List sessions with memory counts
+   - Show first and last memory dates
+   - Optional sample memories from each project/session
+   - Flexible filtering: projects only, sessions only, or both
 
-### Usage Example
+2. **`assign-projects.js` tool** - Retroactively assign projects to orphaned memories
+   - Interactive mode for guided assignment
+   - Batch mode for bulk operations
+   - Filter by date range or content
+   - Dry-run mode for preview
+   - Preserves all existing metadata
+
+### Usage Examples
 ```javascript
-// In Claude Code, use the new tool:
+// In Claude Code, use the enumeration tool:
 list_projects_sessions({ type: 'both', include_samples: true })
 
-// Returns formatted list like:
-## Projects (2 total)
-### default
-- Memories: 500
-- First: 9/25/2025
-- Latest: 9/30/2025
-- Recent samples:
-  - "Example memory content..."
-
-### my-project
-- Memories: 235
-- First: 9/28/2025
-- Latest: 9/30/2025
+// Use the assignment tool from command line:
+node assign-projects.js --batch "default"  // Assign all orphans to default
+node assign-projects.js --interactive      // Interactive mode
+node assign-projects.js --batch "my-project" --from 2025-01-01 --to 2025-01-31
 ```
 
 ### Files Changed
 - `durandal-mcp-server-v3.js` - Added list_projects_sessions tool and handler
+- `assign-projects.js` - New tool for project assignment
 - `package.json` - Version 3.2.1
 
 ---
