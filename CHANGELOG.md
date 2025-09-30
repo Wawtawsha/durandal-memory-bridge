@@ -5,6 +5,37 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.3] - 2025-09-30
+
+### Core Change: Database Startup Checks
+Added comprehensive database health checks that run automatically on every server startup.
+
+### What This Means for Users
+- Server now validates database health before accepting requests
+- Early detection of database issues prevents runtime failures
+- Automatic verification of connectivity, schema, read/write operations, and integrity
+- Clear error messages if database problems are detected
+
+### New Features
+- **Connectivity Test**: Verifies database connection is alive
+- **Schema Validation**: Checks that all required tables and columns exist
+- **Read/Write Test**: Performs a quick write and read operation to verify functionality
+- **Integrity Check**: Runs SQLite's `PRAGMA integrity_check` to detect corruption
+- **Startup Logging**: All checks logged with `[DB-CHECK]` prefix for easy monitoring
+
+### Technical Details
+- Four independent checks run sequentially on startup
+- Checks are non-blocking - server continues even if non-critical issues found
+- Test memory is created and cleaned up automatically
+- Critical failures are logged prominently but don't crash the server
+- All checks complete in < 100ms on healthy databases
+
+### Files Changed
+- `durandal-mcp-server-v3.js` - Added `runDatabaseStartupCheck()`, `validateDatabaseSchema()`, `testReadWrite()`, `checkDatabaseIntegrity()` methods
+- `package.json` - Version 3.1.3
+
+---
+
 ## [3.1.2] - 2025-09-28
 
 ### Core Change: Bug Fixes

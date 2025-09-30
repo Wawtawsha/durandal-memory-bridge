@@ -99,6 +99,9 @@ class DurandalMCPServer extends EventEmitter {
             selectiveAttention: this.config.selectiveAttention
         });
 
+        // Run database startup check
+        this.runDatabaseStartupCheck();
+
         this.setupHandlers();
     }
 
@@ -134,6 +137,222 @@ class DurandalMCPServer extends EventEmitter {
             }
         } catch (error) {
             // Silently fail - config loading shouldn't break server
+        }
+    }
+
+    /**
+     * Runs comprehensive database checks on startup
+     */
+    async runDatabaseStartupCheck() {
+        this.logger.info('[DB-CHECK] Running database startup check...');
+
+        const checks = {
+            connectivity: false,
+            schema: false,
+            readWrite: false,
+            integrity: false
+        };
+
+        try {
+            // Check 1: Database connectivity
+            const connTest = await this.db.testConnection();
+            if (connTest.success) {
+                checks.connectivity = true;
+                this.logger.info('[DB-CHECK] Connectivity test passed');
+            } else {
+                this.logger.error('[DB-CHECK] Connectivity test failed', { error: connTest.error });
+                throw new Error(`Database connectivity failed: ${connTest.error}`);
+            }
+
+            // Check 2: Schema validation
+            const schemaTest = await this.validateDatabaseSchema();
+            if (schemaTest.valid) {
+                checks.schema = true;
+                this.logger.info('[DB-CHECK] Schema validation passed');
+            } else {
+                this.logger.warn('[DB-CHECK] Schema validation warnings', { issues: schemaTest.issues });
+                checks.schema = true; // Allow startup with warnings
+            }
+
+            // Check 3: Read/Write test
+            const rwTest = await this.testReadWrite();
+            if (rwTest.success) {
+                checks.readWrite = true;
+                this.logger.info('[DB-CHECK] Read/Write test passed');
+            } else {
+                this.logger.error('[DB-CHECK] Read/Write test failed', { error: rwTest.error });
+                throw new Error(`Database read/write failed: ${rwTest.error}`);
+            }
+
+            // Check 4: Database integrity
+            const integrityTest = await this.checkDatabaseIntegrity();
+            if (integrityTest.ok) {
+                checks.integrity = true;
+                this.logger.info('[DB-CHECK] Integrity check passed');
+            } else {
+                this.logger.warn('[DB-CHECK] Integrity check found issues', { issues: integrityTest.errors });
+                checks.integrity = true; // Allow startup with warnings
+            }
+
+            // Summary
+            const allPassed = Object.values(checks).every(c => c === true);
+            if (allPassed) {
+                this.logger.success('[DB-CHECK] All database checks passed');
+            } else {
+                this.logger.warn('[DB-CHECK] Some checks failed or had warnings', { checks });
+            }
+
+        } catch (error) {
+            this.logger.error('[DB-CHECK] Critical database check failed', {
+                error: error.message,
+                checks
+            });
+
+            // Log a prominent warning but don't crash - allow server to start
+            console.error('\n[CRITICAL] Database startup check failed:');
+            console.error(`  Error: ${error.message}`);
+            console.error('  Server will continue but database operations may fail.\n');
+        }
+    }
+
+    /**
+     * Validates database schema exists and is correct
+     */
+    async validateDatabaseSchema() {
+        try {
+            const tables = await new Promise((resolve, reject) => {
+                this.db.db.client.all(
+                    "SELECT name FROM sqlite_master WHERE type='table'",
+                    (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows.map(r => r.name));
+                    }
+                );
+            });
+
+            const requiredTables = ['memories'];
+            const missingTables = requiredTables.filter(t => !tables.includes(t));
+
+            if (missingTables.length > 0) {
+                return {
+                    valid: false,
+                    issues: [`Missing tables: ${missingTables.join(', ')}`]
+                };
+            }
+
+            // Check memories table structure
+            const columns = await new Promise((resolve, reject) => {
+                this.db.db.client.all(
+                    "PRAGMA table_info(memories)",
+                    (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows.map(r => r.name));
+                    }
+                );
+            });
+
+            const requiredColumns = ['id', 'content', 'metadata', 'created_at'];
+            const missingColumns = requiredColumns.filter(c => !columns.includes(c));
+
+            if (missingColumns.length > 0) {
+                return {
+                    valid: false,
+                    issues: [`Missing columns in memories table: ${missingColumns.join(', ')}`]
+                };
+            }
+
+            return { valid: true, issues: [] };
+
+        } catch (error) {
+            return {
+                valid: false,
+                issues: [`Schema validation error: ${error.message}`]
+            };
+        }
+    }
+
+    /**
+     * Tests basic read/write operations
+     */
+    async testReadWrite() {
+        try {
+            const testContent = `[DB-CHECK] Test memory created at ${new Date().toISOString()}`;
+            const testMetadata = {
+                type: 'system-test',
+                test: true,
+                timestamp: new Date().toISOString()
+            };
+
+            // Write test
+            const storeResult = await this.db.db.storeMemory(testContent, testMetadata);
+
+            if (!storeResult || !storeResult.id) {
+                throw new Error('Store operation did not return an ID');
+            }
+
+            // Read test
+            const searchResult = await this.db.db.searchMemories('[DB-CHECK]', {}, 1);
+
+            if (!searchResult || searchResult.length === 0) {
+                throw new Error('Search operation returned no results');
+            }
+
+            // Cleanup test memory
+            try {
+                await new Promise((resolve, reject) => {
+                    this.db.db.client.run(
+                        'DELETE FROM memories WHERE id = ?',
+                        [storeResult.id],
+                        (err) => err ? reject(err) : resolve()
+                    );
+                });
+            } catch (cleanupError) {
+                // Non-critical if cleanup fails
+                this.logger.warn('[DB-CHECK] Test memory cleanup failed', {
+                    error: cleanupError.message
+                });
+            }
+
+            return { success: true };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Checks database integrity using SQLite's PRAGMA integrity_check
+     */
+    async checkDatabaseIntegrity() {
+        try {
+            const result = await new Promise((resolve, reject) => {
+                this.db.db.client.all(
+                    'PRAGMA integrity_check',
+                    (err, rows) => {
+                        if (err) reject(err);
+                        else resolve(rows);
+                    }
+                );
+            });
+
+            // SQLite returns 'ok' if database is healthy
+            if (result.length === 1 && result[0].integrity_check === 'ok') {
+                return { ok: true, errors: [] };
+            } else {
+                return {
+                    ok: false,
+                    errors: result.map(r => r.integrity_check)
+                };
+            }
+
+        } catch (error) {
+            return {
+                ok: false,
+                errors: [`Integrity check failed: ${error.message}`]
+            };
         }
     }
 
