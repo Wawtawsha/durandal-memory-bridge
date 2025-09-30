@@ -743,10 +743,13 @@ class DurandalMCPServer extends EventEmitter {
 
         // Format results
         const formattedResults = allResults.map((result, index) => {
+            const metadata = result.metadata || {};
             return `**${index + 1}. Memory ${result.id}**\n` +
                    `   Content: ${result.content.substring(0, 100)}${result.content.length > 100 ? '...' : ''}\n` +
-                   `   Importance: ${result.importance || 'N/A'}\n` +
-                   `   Categories: ${result.categories?.join(', ') || 'None'}\n` +
+                   `   Project: ${metadata.project || 'None'}\n` +
+                   `   Session: ${metadata.session || 'None'}\n` +
+                   `   Importance: ${result.importance || metadata.importance || 'N/A'}\n` +
+                   `   Categories: ${result.categories?.join(', ') || metadata.categories?.join(', ') || 'None'}\n` +
                    `   Created: ${result.created_at || 'Unknown'}`;
         }).join('\n\n');
 
@@ -1437,8 +1440,9 @@ class DurandalMCPServer extends EventEmitter {
 
     async searchDatabase(query, filters, limit) {
         try {
-            return await this.db.searchMessages(query, {
+            return await this.db.searchMemories(query, {
                 project: filters.project,
+                session: filters.session,
                 limit
             });
         } catch (error) {

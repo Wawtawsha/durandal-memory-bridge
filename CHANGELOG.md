@@ -5,6 +5,22 @@ All notable changes to Durandal MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.4] - 2025-09-30
+
+### Core Change: Fix Project Search Bug
+Fixed critical bug where search_memories couldn't find memories by project even though they were properly assigned.
+
+### Bug Fix
+- **Search by project now works** - Fixed typo where search called wrong method
+- **Project/session displayed in results** - Search results now show project and session info
+
+### What Was Wrong
+- Status correctly counted memories in projects
+- But search_memories couldn't retrieve them due to calling `searchMessages` instead of `searchMemories`
+- Project filter was implemented but never reached
+
+---
+
 ## [3.2.3] - 2025-09-30
 
 ### Core Change: Global Commands for Tools
